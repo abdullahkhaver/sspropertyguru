@@ -1,0 +1,235 @@
+// controllers/agent.controller.js
+import User from '../models/user.model.js';
+import Franchise from "../models/franchise.model.js";
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { ApiError } from '../utils/ApiError.js';
+
+export const getAgents = async (req, res) => {
+  try {
+    const agents = await User.find({ role: 'agent' }).select('-password');
+
+    if (!agents || agents.length === 0) {
+      return res.status(404).json(new ApiResponse(404, [], 'No agents found'));
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, agents, 'Agents fetched successfully'));
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    return res.status(500).json(new ApiError(500, 'Internal Server Error'));
+  }
+};
+
+export const getFiveAgents = async (req, res) => {
+  try {
+    const agents = await User.find({ role: 'agent' })
+      .select('-password')
+      .limit(5)
+      .sort({ createdAt: -1 });
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, agents, '5 agents fetched successfully'));
+  } catch (error) {
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, 'Error fetching agents'));
+  }
+};
+
+export const editAgent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    // Prevent role change to something else
+    if (updates.role && updates.role !== 'agent') {
+      return res.status(400).json(new ApiError(400, 'Role change not allowed'));
+    }
+
+    const updatedAgent = await User.findOneAndUpdate(
+      { _id: id, role: 'agent' },
+      { ...updates, updatedAt: new Date() },
+      { new: true, runValidators: true, context: 'query' },
+    ).select('-password');
+
+    if (!updatedAgent) {
+      return res
+        .status(404)
+        .json(new ApiError(404, 'Agent not found or not an agent role'));
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, updatedAgent, 'Agent updated successfully'));
+  } catch (error) {
+    console.error('Error editing agent:', error);
+    return res.status(500).json(new ApiError(500, 'Internal Server Error'));
+  }
+};
+
+export const deleteAgent = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await User.findOneAndDelete({ _id: id, role: "agent" });
+    if (!deleted) {
+      return res.status(404).json(ApiError.notFound("Agent not found"));
+    }
+
+    res.status(200).json(new ApiResponse(200, deleted, "Agent deleted successfully"));
+  } catch (error) {
+    res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
+
+// ===== NEW FUNCTIONS for Franchise dashboard =====
+
+// Add agent under a franchise
+export const addAgentToFranchise = async (req, res) => {
+  try {
+    const { franchiseId } = req.params;
+    const { name, email, contact, password, avatar } = req.body;
+
+    console.log('Incoming Franchise ID:', franchiseId);
+
+    // ✅ Check if the franchise exists in Franchise model
+    const franchise = await Franchise.findById(franchiseId);
+    if (!franchise) {
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
+    }
+
+    // ✅ Check for duplicate agent (by email or contact)
+    const existingAgent = await User.findOne({
+      $or: [{ email }, { contact }],
+    });
+    if (existingAgent) {
+      return res
+        .status(409)
+        .json(
+          ApiError.conflict('Agent with this email or contact already exists'),
+        );
+    }
+
+    // ✅ Create new agent user
+    const agent = await User.create({
+      name,
+      email,
+      contact,
+      password,
+      avatar,
+      role: 'agent',
+      franchise: franchise._id,
+    });
+
+    // ✅ Add agent to franchise.agents[] if field exists
+    if (Array.isArray(franchise.agents)) {
+      franchise.agents.push(agent._id);
+      await franchise.save();
+    }
+
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(201, agent, 'Agent added to franchise successfully'),
+      );
+  } catch (error) {
+    console.error('Error adding agent to franchise:', error);
+    return res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
+// Get agents under a specific franchise
+export const getAgentsByFranchise = async (req, res) => {
+  try {
+    const { franchiseId } = req.params;
+
+    console.log('Incoming franchiseId:', franchiseId);
+
+    if (!franchiseId || franchiseId === 'undefined' || franchiseId === 'null') {
+      return res
+        .status(400)
+        .json(new ApiError(400, 'Valid franchiseId is required'));
+    }
+
+    const agents = await User.find({
+      role: 'agent',
+      franchise: franchiseId,
+    }).populate('franchise', 'name email');
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, agents, 'Agents fetched successfully'));
+  } catch (err) {
+    console.error('Get agents error:', err);
+    return res
+      .status(500)
+      .json(new ApiError(500, 'Error fetching agents for franchise'));
+  }
+};
+
+
+// Update agent (franchise scoped)
+export const updateAgentInFranchise = async (req, res) => {
+  try {
+    const { agentId, franchiseId } = req.params;
+    const updates = req.body;
+console.log('Incoming Franchise ID:', franchiseId);
+
+    const agent = await User.findOneAndUpdate(
+      { _id: agentId, role: "agent", franchise: franchiseId },
+      { ...updates, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!agent) {
+      return res.status(404).json(ApiError.notFound("Agent not found in this franchise"));
+    }
+
+    return res
+      .status(200)
+      .json(ApiResponse.success("Agent updated successfully", agent));
+  } catch (error) {
+    console.error("Error updating franchise agent:", error);
+    return res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
+export const deleteAgentInFranchise = async (req, res) => {
+  try {
+    const { agentId, franchiseId } = req.params;
+    console.log('Deleting Agent:', agentId, 'From Franchise:', franchiseId);
+
+    const franchise = await Franchise.findById(franchiseId);
+    if (!franchise) {
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
+    }
+
+    const agent = await User.findOneAndDelete({
+      _id: agentId,
+      role: 'agent',
+      franchise: franchiseId,
+    });
+
+    if (!agent) {
+      return res
+        .status(404)
+        .json(ApiError.notFound('Agent not found in this franchise'));
+    }
+
+    await Franchise.findByIdAndUpdate(franchiseId, {
+      $pull: { agents: agent._id },
+    });
+
+    console.log('Agent deleted successfully:', agent.fullName || agent._id);
+
+    return res
+      .status(200)
+      .json(ApiResponse.success('Agent deleted successfully', agent));
+  } catch (error) {
+    console.error('Error deleting franchise agent:', error);
+    return res.status(500).json(ApiError.internal(error.message));
+  }
+};

@@ -1,0 +1,40 @@
+// Auth Apis
+
+POST: /api/v1/auth/signup
+POST: /api/v1/auth/signin
+GET: /api/v1/auth/me
+
+// User Apis
+GET: /api/v1/users // Get All users
+PUT: /api/v1/users/:id Edit a User
+DELETE: /api/v1/users/:id // Delete a User
+
+// Agent Apis
+GET: /api/v1/agents // Get All Agents
+GET: /api/v1/agents/top5 // Get top 5 latest agents
+PUT: /api/v1/agents/:id // Edit An Agent
+Delete: /api/v1/agents/:id // Delete the agent
+
+// Properties Apis
+POST: /api/v1/properties // Create a property
+GET: /api/v1/properties/ // Get All Properties
+GET: /api/v1/properties/:id // Get a property by id
+GET: /api/v1/properties/my-properties // Get property of logged in user
+PUT: /api/v1/properties/:id // Update a property
+DELETE: /api/v1/properties/:id // Delete a property
+
+// Franchise Apis
+POST: /api/v1/franchise/create // Create a franchise
+GET: /api/v1/franchise // Get all franchise
+PUT: /api/v1/franchise/:id // Edit a franchise
+DELETE: /api/v1/franchise/:id // Delete a franchise
+PATCH: /api/v1/franchise/:id/toggle-status // Toggle the staus
+
+// Enqury Apis
+POST: /api/v1/enquiries // Create an enquiry
+GET: /api/v1/enquiries // Get all enquiries
+PUT: /api/v1/enquiries/:id // Edit an enquiry
+DELETE: /api/v1/enquiries/:id // Delete an enquiry
+
+// SuperAdminDashboard Apis
+GET: /api/v1/speradmindashboard // Get dashboard stats
