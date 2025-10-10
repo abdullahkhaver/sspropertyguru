@@ -27,7 +27,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(cors({
-  origin: '*',
+  origin: 'http://sspropertyguru.itkhaver.com',
   credentials: true,
 }));
 app.use(helmet());
