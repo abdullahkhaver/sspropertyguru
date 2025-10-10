@@ -30,7 +30,6 @@ export const signup = async (req, res) => {
         );
     }
 
-    // ✅ Verify franchise exists if provided (for agents)
     let franchiseDoc = null;
     if (franchise) {
       franchiseDoc = await Franchise.findById(franchise);
@@ -67,7 +66,6 @@ export const signup = async (req, res) => {
         .json(ApiError.internal(500, 'Failed to upload avatar'));
     }
 
-    // ✅ Create user with verified franchise ID
     const user = await User.create({
       name,
       contact,
@@ -78,7 +76,6 @@ export const signup = async (req, res) => {
       franchise: franchiseDoc ? franchiseDoc._id : null,
     });
 
-    // ✅ If agent, link to franchise
     if (finalRole === 'agent' && franchiseDoc) {
       await Franchise.findByIdAndUpdate(franchiseDoc._id, {
         $push: { agents: user._id },
@@ -104,7 +101,8 @@ export const signup = async (req, res) => {
 
     res.cookie('jwt', token, {
       httpOnly: true,
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
@@ -225,7 +223,8 @@ if (user.role === 'agent') {
 
     res.cookie('jwt', token, {
       httpOnly: true,
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 

@@ -1,4 +1,3 @@
-// src/utils/generateToken.js
 import jwt from 'jsonwebtoken';
 
 const generateToken = (user) => {
@@ -9,7 +8,7 @@ const generateToken = (user) => {
       expiresIn: '7d',
     });
 
-    return token; // just return token string
+    return token;
   } catch (err) {
     console.error('Error generating token:', err.message);
     throw new Error('Token generation failed');
