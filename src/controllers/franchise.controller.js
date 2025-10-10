@@ -201,3 +201,44 @@ export const toggleFranchiseStatus = async (req, res) => {
     return res.status(500).json(new ApiError(500, "Internal server error", error.message));
   }
 };
+
+export const getFranchiseById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if ID is provided
+    if (!id) {
+      return res
+        .status(400)
+        .json(new ApiError(400, 'Franchise ID is required'));
+    }
+
+    // Find franchise and populate its related user data
+    const franchise = await Franchise.findById(id)
+      .populate({
+        path: 'user',
+        select: 'name email contact avatar role status createdAt', // select only required fields
+      })
+      .lean();
+
+    // If not found
+    if (!franchise) {
+      return res.status(404).json(new ApiError(404, 'Franchise not found'));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          franchise,
+          'Franchise details fetched successfully',
+        ),
+      );
+  } catch (error) {
+    console.error('Error fetching franchise details:', error);
+    return res
+      .status(500)
+      .json(new ApiError(500, 'Internal server error', error.message));
+  }
+};

@@ -134,24 +134,21 @@ export const signup = async (req, res) => {
       );
   }
 };
-
 export const signin = async (req, res) => {
   try {
     const { identifier, email, contact, password } = req.body;
-
     const id = identifier || email || contact;
+
     if (!id || !password) {
       return res
         .status(400)
         .json(
           ApiError.badRequest(
-            400,
             'Identifier (email/contact) and password are required',
           ),
         );
     }
 
-    // Find user by email or contact
     const user = await User.findOne({
       $or: [{ email: id }, { contact: id }],
     }).select('+password +refreshToken');
@@ -159,67 +156,96 @@ export const signin = async (req, res) => {
     if (!user) {
       return res
         .status(404)
-        .json(ApiError.notFound(404, 'User does not exist'));
+        .json(ApiError.notFound('User does not exist'));
     }
 
-    // Verify password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res
         .status(401)
-        .json(ApiError.unauthorized(401, 'Invalid credentials'));
+        .json(ApiError.unauthorized('Invalid credentials'));
     }
 
-if (user.role === 'franchise') {
-  const franchise = await Franchise.findOne({ email: user.email });
-  if (franchise) {
-    // update user if not linked yet
-    if (!user.franchise) {
-      user.franchise = franchise._id;
-      await user.save();
+    if (
+      user.status === 'inactive' ||
+      user.status === 'pending' ||
+      user.status === 'rejected'
+    ) {
+      return res
+        .status(403)
+        .json(
+          ApiError.forbidden(
+
+            'Your account is inactive. Please contact the administrator.',
+          ),
+        );
     }
+
+    if (user.role === 'franchise') {
+      const franchise = await Franchise.findOne({ email: user.email });
+      if (franchise && !user.franchise) {
+        user.franchise = franchise._id;
+        await user.save();
+      }
+
+      // Check if franchise record itself is inactive
+      if (franchise && franchise.status === 'inactive' || franchise.status === 'rejected' || franchise.status === 'pending') {
+        return res
+          .status(403)
+          .json(
+            ApiError.forbidden(
+
+              'Your franchise account is inactive. Please contact the administrator.',
+            ),
+          );
+      }
+    }
+
+if (user.role === 'agent') {
+  const franchise = user.franchise
+    ? await Franchise.findById(user.franchise)
+    : null;
+
+  if (
+    franchise &&
+    ['inactive', 'rejected', 'pending'].includes(franchise.status)
+  ) {
+    return res
+      .status(403)
+      .json(
+        ApiError.forbidden(
+          'Your franchise is inactive. Please contact the administrator.',
+        ),
+      );
   }
 }
 
 
-    // Generate JWT
     const token = generateToken(user);
 
-    // Set cookie (optional)
     res.cookie('jwt', token, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
     });
 
-    // Get safe user (without password/refreshToken)
     const safeUser = await User.findById(user._id)
       .select('-password -refreshToken')
-      .populate('franchise', 'name email');
+      .populate('franchise', 'name email status');
 
-
-    // const userWithFranchise = {
-    //   ...safeUser.toObject(),
-    //   franchiseId,
-    // };
-
-    // Final response
     return res
       .status(200)
       .json(
-        new ApiResponse(
-          200,
-          { user: safeUser, token },
-          'Login successful',
-        ),
+        new ApiResponse(200, { user: safeUser, token }, 'Login successful'),
       );
   } catch (err) {
     console.error('Login error:', err);
     return res
       .status(500)
-      .json(ApiError.internal(500, 'Something went wrong while logging in'));
+      .json(ApiError.internal('Something went wrong while logging in'));
   }
 };
+
 
 export const getMe = async (req, res) => {
   try {

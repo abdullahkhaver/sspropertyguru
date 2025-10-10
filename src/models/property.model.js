@@ -6,33 +6,23 @@ const propertySchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ['Property', 'Plot', 'House', 'Land', 'Commercial'],
+      enum: ['Property', 'Plot', 'House'],
       required: [true, 'Category is required'],
-    },
-
-    type: {
-      type: String,
-      enum: [
-        'Asanchit',
-        'Sanchit',
-        'Agricultural Land',
-        'Residential Land',
-        'Commercial Land',
-        'Industrial Land',
-        'House',
-        'Flat',
-        'Villa',
-      ],
     },
 
     features: [String],
 
-    images: [{ url: String }], // up to 4 Cloudinary URLs
+    images: [
+      {
+        url: { type: String, required: true },
+        public_id: { type: String },
+      },
+    ], // up to 4 Cloudinary URLs
     video: { type: String },
 
     sellingType: {
       type: String,
-      enum: ['Sale', 'Rent', 'Lease', 'For Sale', 'For Rent'],
+      enum: ['Sale', 'Rent', 'Lease'],
       required: [true, 'Selling type is required'],
     },
 

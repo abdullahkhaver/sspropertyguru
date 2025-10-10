@@ -2,7 +2,6 @@ import Property from '../models/property.model.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
-
 const formatValidationError = (err) => {
   if (err.name === 'ValidationError') {
     const errors = {};
@@ -13,17 +12,15 @@ const formatValidationError = (err) => {
   }
   return null;
 };
-
 export const createProperty = async (req, res) => {
   try {
     const data = req.body;
     const images = [];
     let videoUrl = null;
 
-    console.log('🟢 Incoming property data:', data);
-    console.log('📸 Incoming files:', req.files);
+    console.log('Incoming property data:', data);
+    console.log('Incoming files:', req.files);
 
-    // Validate image count
     if (req.files?.images && req.files.images.length > 4) {
       return res.status(400).json({
         success: false,
@@ -31,43 +28,62 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    // Upload images
     if (req.files?.images?.length) {
       for (const img of req.files.images) {
         try {
           console.log(`Uploading image: ${img.path}`);
-          const uploaded = await uploadOnCloudinary(img.path, 'image');
-          if (uploaded?.secure_url) images.push(uploaded.secure_url);
+          const uploaded = await uploadOnCloudinary(
+            img.path,
+            'property_images',
+            'image',
+          );
+
+          if (uploaded?.url) {
+            images.push({ url: uploaded.url });
+          }
         } catch (uploadErr) {
-          console.error('❌ Image upload failed:', uploadErr.message);
+          console.error('Image upload failed:', uploadErr.message);
         }
       }
     }
 
-    // Upload video (if any)
     if (req.files?.video?.length) {
       try {
         console.log(`Uploading video: ${req.files.video[0].path}`);
         const uploadedVideo = await uploadOnCloudinary(
           req.files.video[0].path,
+          'property_videos',
           'video',
         );
-        if (uploadedVideo?.secure_url) videoUrl = uploadedVideo.secure_url;
+        if (uploadedVideo?.url) videoUrl = uploadedVideo.url;
       } catch (uploadErr) {
-        console.error('❌ Video upload failed:', uploadErr.message);
+        console.error('Video upload failed:', uploadErr.message);
       }
     }
 
-    // Create property
+    let features = [];
+    if (data.features) {
+      if (typeof data.features === 'string') {
+        features = data.features.split(',').map((f) => f.trim());
+      } else if (Array.isArray(data.features)) {
+        features = data.features.flat(Infinity).map((f) => String(f).trim());
+      }
+    }
+
+    const agentId = req.user?._id || data.agent || null;
+    const franchiseId = data.franchise || null;
+
     const property = new Property({
       ...data,
-      agent: req.user?._id || data.agent,
+      agent: agentId,
+      franchise: franchiseId,
       images,
       video: videoUrl,
+      features,
     });
 
     const saved = await property.save();
-    console.log('✅ Property saved:', saved._id);
+    console.log('Property saved:', saved._id);
 
     return res.status(201).json({
       success: true,
@@ -75,9 +91,8 @@ export const createProperty = async (req, res) => {
       data: saved,
     });
   } catch (err) {
-    console.error('🔥 Create Property Error:', err);
+    console.error('Create Property Error:', err);
 
-    // Handle validation errors gracefully
     if (err.name === 'ValidationError') {
       const formattedErrors = Object.keys(err.errors).map((key) => ({
         field: key,
@@ -90,72 +105,134 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    // Final fallback for any other error
     return res.status(500).json({
       success: false,
       message: err.message || 'Internal server error',
     });
   }
 };
-
-
-// UPDATE PROPERTY
 export const updateProperty = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const updates = { ...req.body, updatedAt: new Date() };
+    const data = req.body;
 
-    const objectIdFields = ['district', 'area', 'agent', 'franchise'];
-    objectIdFields.forEach((field) => {
-      if (updates[field] === '' || updates[field] === undefined) {
-        delete updates[field];
+    console.log('Incoming property update data:', data);
+    console.log('Incoming files:', req.files);
+
+    const existingProperty = await Property.findById(id);
+    if (!existingProperty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Property not found',
+      });
+    }
+
+    const updates = { ...data, updatedAt: new Date() };
+
+    if (!updates.franchise) delete updates.franchise;
+    if (!updates.agent) delete updates.agent;
+
+    if (data.features) {
+      if (typeof data.features === 'string') {
+        updates.features = data.features.split(',').map((f) => f.trim());
+      } else if (Array.isArray(data.features)) {
+        updates.features = data.features.flat().map((f) => String(f).trim());
       }
-    });
+    }
 
-    // handle new uploads
+    // 🧠 Step 4: Assign logged-in agent
+    if (req.user?._id) {
+      updates.agent = req.user._id;
+    }
+
+    // 🖼️ **FIX: Properly handle images field**
+    let updatedImages = [...(existingProperty.images || [])];
+
+    // If new images are uploaded
     if (req.files?.images?.length) {
       if (req.files.images.length > 4) {
-        return res
-          .status(400)
-          .json(ApiError.badRequest('Maximum 4 images are allowed'));
+        return res.status(400).json({
+          success: false,
+          message: 'Maximum 4 images are allowed.',
+        });
       }
 
       const newImages = [];
-      for (let img of req.files.images) {
-        const uploaded = await uploadOnCloudinary(img.path, 'image');
-        if (uploaded?.secure_url) newImages.push(uploaded.secure_url);
+      for (const img of req.files.images) {
+        try {
+          console.log(`Uploading new image: ${img.path}`);
+          const uploaded = await uploadOnCloudinary(
+            img.path,
+            'property_images',
+            'image',
+          );
+          if (uploaded?.url) newImages.push({ url: uploaded.url });
+        } catch (err) {
+          console.error('Image upload failed:', err.message);
+        }
       }
-      updates.images = newImages;
+      updatedImages = [...updatedImages, ...newImages];
     }
+    // **FIX: Don't process images from req.body during update**
+    // Remove images from updates if they're coming as malformed strings
+    delete updates.images;
 
+    updates.images = updatedImages.slice(0, 4);
+
+    // 🎥 Handle video
     if (req.files?.video?.length) {
-      const uploadedVideo = await uploadOnCloudinary(
-        req.files.video[0].path,
-        'video',
-      );
-      if (uploadedVideo?.secure_url) updates.video = uploadedVideo.secure_url;
+      try {
+        console.log(`Uploading new video: ${req.files.video[0].path}`);
+        const uploadedVideo = await uploadOnCloudinary(
+          req.files.video[0].path,
+          'property_videos',
+          'video',
+        );
+        if (uploadedVideo?.url) {
+          updates.video = uploadedVideo.url;
+        }
+      } catch (err) {
+        console.error('Video upload failed:', err.message);
+      }
+    } else if (!data.video) {
+      updates.video = existingProperty.video;
     }
 
-    const property = await Property.findByIdAndUpdate(
-      id,
-      { $set: updates },
-      { new: true, runValidators: true },
-    );
+    const updatedProperty = await Property.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    });
 
-    if (!property) {
-      return res.status(404).json(ApiError.notFound('Property not found'));
+    if (!updatedProperty) {
+      return res.status(404).json({
+        success: false,
+        message: 'Failed to update property.',
+      });
     }
 
-    res.json(ApiResponse.success('Property updated successfully', property));
+    console.log('Property updated:', updatedProperty._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Property updated successfully',
+      data: updatedProperty,
+    });
   } catch (err) {
+    console.error('Update Property Error:', err);
+
     const validationErrors = formatValidationError(err);
     if (validationErrors) {
-      return res
-        .status(400)
-        .json(ApiError.badRequest('Validation failed', validationErrors));
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validationErrors,
+      });
     }
-    console.error('Update Property Error:', err);
-    next(err);
+
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
   }
 };
 
@@ -221,38 +298,43 @@ export const deleteProperty = async (req, res, next) => {
     next(err);
   }
 };
-
-// GET PROPERTIES OF LOGGED-IN AGENT OR FRANCHISE
-export const getMyProperties = async (req, res, next) => {
+export const getPropertiesByFranchiseOrAgent = async (req, res) => {
   try {
-    if (!req.user) {
-      return res
-        .status(401)
-        .json(ApiError.unauthorized("Unauthorized access"));
+    const { franchiseId, agentId } = req.params;
+
+    let query = {};
+    if (franchiseId) query.franchise = franchiseId;
+    if (agentId) query.agent = agentId;
+
+    if (!franchiseId && !agentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide either franchiseId or agentId in params.',
+      });
     }
 
-    let filter = {};
-
-    if (req.user.role === "agent") {
-      filter.agent = req.user._id;
-    } else if (req.user.role === "franchise") {
-      filter.franchise = req.user._id;
-    } else {
-      return res
-        .status(403)
-        .json(ApiError.forbidden("Only agents or franchises can view their properties"));
-    }
-
-    const properties = await Property.find(filter)
-      .populate("district", "name")
-      .populate("area", "name")
-      .populate("agent", "name email")
-      .populate("franchise", "name")
+    const properties = await Property.find(query)
+      .populate('agent', 'fullName email')
+      .populate('franchise', 'name email')
       .sort({ createdAt: -1 });
 
-    return res.json(ApiResponse.success("My properties fetched", properties));
+    if (!properties.length) {
+      return res.status(404).json({
+        success: false,
+        message: 'No properties found for the given criteria.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: properties.length,
+      data: properties,
+    });
   } catch (err) {
-    console.error("GetMyProperties Error:", err);
-    next(err);
+    console.error('Fetch Properties Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Internal server error',
+    });
   }
 };

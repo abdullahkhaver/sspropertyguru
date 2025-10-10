@@ -2,7 +2,6 @@ import Area from '../models/area.model.js';
 import District from '../models/district.model.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
-
 export const createArea = async (req, res, next) => {
   try {
     const { name, district } = req.body;
@@ -19,14 +18,17 @@ export const createArea = async (req, res, next) => {
       return res.status(404).json(ApiError.notFound('District not found'));
     }
 
-    const existing = await Area.findOne({ name: name.trim(), district });
+    const existing = await Area.findOne({
+      name: name.trim(),
+      district: district,
+    });
     if (existing) {
       return res
         .status(400)
         .json(ApiError.badRequest('Area already exists in this district'));
     }
 
-    const area = new Area({ name: name.trim(), district });
+    const area = new Area({ name: name.trim(), district: district });
     await area.save();
 
     res
@@ -73,7 +75,7 @@ export const updateArea = async (req, res, next) => {
   try {
     const { name, district } = req.body;
     const { id } = req.params;
-
+console.log(name, district);
     const updates = {};
 
     if (name && name.trim()) updates.name = name.trim();

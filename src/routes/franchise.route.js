@@ -6,12 +6,14 @@ import {
   toggleFranchiseStatus,
   editFranchise,
   deleteFranchise,
+  getFranchiseById,
 } from '../controllers/franchise.controller.js';
 import {upload} from '../middleware/multer.js';
 const router = express.Router();
 
 router.post('/create', upload.single('image'), createFranchise);
 router.get('/', getAllFranchises);
+router.get("/:id", getFranchiseById);
 router.put('/:id', editFranchise);
 router.delete('/:id', deleteFranchise);
 router.patch('/:id/toggle-status', toggleFranchiseStatus);

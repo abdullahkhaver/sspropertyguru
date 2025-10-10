@@ -6,7 +6,12 @@ import { ApiError } from '../utils/ApiError.js';
 
 export const getAgents = async (req, res) => {
   try {
-    const agents = await User.find({ role: 'agent' }).select('-password');
+    const agents = await User.find({ role: 'agent' })
+      .select('-password')
+      .populate({
+        path: 'franchise',
+        select: 'fullName email contact status createdAt',
+      });
 
     if (!agents || agents.length === 0) {
       return res.status(404).json(new ApiResponse(404, [], 'No agents found'));
@@ -95,13 +100,11 @@ export const addAgentToFranchise = async (req, res) => {
 
     console.log('Incoming Franchise ID:', franchiseId);
 
-    // ✅ Check if the franchise exists in Franchise model
     const franchise = await Franchise.findById(franchiseId);
     if (!franchise) {
       return res.status(404).json(ApiError.notFound('Franchise not found'));
     }
 
-    // ✅ Check for duplicate agent (by email or contact)
     const existingAgent = await User.findOne({
       $or: [{ email }, { contact }],
     });
@@ -113,7 +116,6 @@ export const addAgentToFranchise = async (req, res) => {
         );
     }
 
-    // ✅ Create new agent user
     const agent = await User.create({
       name,
       email,
@@ -124,7 +126,6 @@ export const addAgentToFranchise = async (req, res) => {
       franchise: franchise._id,
     });
 
-    // ✅ Add agent to franchise.agents[] if field exists
     if (Array.isArray(franchise.agents)) {
       franchise.agents.push(agent._id);
       await franchise.save();
@@ -231,5 +232,30 @@ export const deleteAgentInFranchise = async (req, res) => {
   } catch (error) {
     console.error('Error deleting franchise agent:', error);
     return res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
+// Toggle Agent Status (Active <-> Inactive)
+export const toggleAgentStatus = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    // Find the agent by ID and role
+    const agent = await User.findOne({ _id: agentId, role: 'agent' });
+    if (!agent) {
+      return res.status(404).json(new ApiError(404, 'Agent not found'));
+    }
+
+    // Toggle the status
+    const newStatus = agent.status === 'active' ? 'inactive' : 'active';
+    agent.status = newStatus;
+    await agent.save();
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, { id: agent._id, status: newStatus }, `Agent status changed to ${newStatus}`));
+  } catch (error) {
+    console.error('Error toggling agent status:', error);
+    return res.status(500).json(new ApiError(500, 'Error updating agent status'));
   }
 };
