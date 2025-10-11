@@ -5,8 +5,6 @@ import './src/models/district.model.js';
 import './src/models/area.model.js';
 import './src/models/franchise.model.js';
 
-
-
 dotenv.config({
   path: './.env',
   quiet: true

@@ -4,13 +4,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// cloudinary.config({
+//   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+//   api_key: process.env.CLOUDINARY_API_KEY,
+//   api_secret: process.env.CLOUDINARY_API_SECRET,
+//   timeout: 60000, // 60 seconds
+// });
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: djzlld9cb,
+  api_key: 324143539475724,
+  api_secret: _HuUH9N69tUtjsOzd1hgfU3AMo0,
   timeout: 60000, // 60 seconds
 });
-
 const uploadOnCloudinary = async (
   localFilePath,
   folder = 'property_site',
