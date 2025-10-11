@@ -13,7 +13,7 @@ export const signup = async (req, res) => {
     if (!name || !contact || !email || !password) {
       return res
         .status(400)
-        .json(ApiError.badRequest(400, 'All fields are required'));
+        .json(ApiError.badRequest('All fields are required'));
     }
 
     const allowedRoles = ['user', 'agent', 'franchise', 'superadmin'];
@@ -26,7 +26,7 @@ export const signup = async (req, res) => {
       return res
         .status(409)
         .json(
-          new ApiError(409, 'User with this email or contact already exists'),
+          new ApiError('User with this email or contact already exists'),
         );
     }
 
@@ -36,7 +36,7 @@ export const signup = async (req, res) => {
       if (!franchiseDoc) {
         return res
           .status(404)
-          .json(ApiError.notFound(404, 'Franchise not found'));
+          .json(ApiError.notFound('Franchise not found'));
       }
     }
 
@@ -45,7 +45,7 @@ export const signup = async (req, res) => {
     if (!avatarLocalPath) {
       return res
         .status(400)
-        .json(ApiError.badRequest(400, 'Avatar file is required'));
+        .json(ApiError.badRequest('Avatar file is required'));
     }
 
     let avatar;
@@ -55,7 +55,7 @@ export const signup = async (req, res) => {
         return res
           .status(500)
           .json(
-            ApiError.internal(500, 'Avatar upload failed. Please try again.'),
+            ApiError.internal('Avatar upload failed. Please try again.'),
           );
       }
       if (fs.existsSync(avatarLocalPath)) fs.unlinkSync(avatarLocalPath);
@@ -63,7 +63,7 @@ export const signup = async (req, res) => {
       if (fs.existsSync(avatarLocalPath)) fs.unlinkSync(avatarLocalPath);
       return res
         .status(500)
-        .json(ApiError.internal(500, 'Failed to upload avatar'));
+        .json(ApiError.internal('Failed to upload avatar'));
     }
 
     const user = await User.create({
