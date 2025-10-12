@@ -6,7 +6,7 @@ const generateToken = (user) => {
 
     const token = jwt.sign(
       payload,
-      process.env.JWT_SECRET || 'supersecretkey',
+      process.env.JWT_SECRET,
       {
         expiresIn: '7d',
       },

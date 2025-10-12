@@ -11,10 +11,12 @@ dotenv.config({
 });
 
 const PORT = process.env.PORT || 5000;
-console.log('CLOUDINARY_CLOUD_NAME', process.env.CLOUDINARY_CLOUD_NAME);
-console.log('CLOUDINARY_API_KEY', process.env.CLOUDINARY_API_KEY);
-console.log('CLOUDINARY_API_SECRET', process.env.CLOUDINARY_API_SECRET);
-
+console.log('CLOUDINARY_CLOUD_NAME', process.env.CLOUDINARY_CLOUD_NAME || 'not set');
+console.log('CLOUDINARY_API_KEY', process.env.CLOUDINARY_API_KEY || 'not set');
+console.log('CLOUDINARY_API_SECRET', process.env.CLOUDINARY_API_SECRET || 'not set');
+console.log('PORT', process.env.PORT || 'not set');
+console.log('MONGO_URI', process.env.MONGO_URI || 'not set');
+console.log('JWT_SECRET', process.env.JWT_SECRET || 'not set');
 
 
 connectDB()
