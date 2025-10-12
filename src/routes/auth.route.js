@@ -11,5 +11,5 @@ router.post('/signup', upload.single('avatar'), signup);
 // Signin without upload
 router.post('/signin', signin);
 
-router.get('/me',protect, getMe);
+router.get('/me', getMe);
 export default router;
