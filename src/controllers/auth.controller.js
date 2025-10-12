@@ -245,13 +245,27 @@ if (user.role === 'agent') {
   }
 };
 
-
 export const getMe = async (req, res) => {
   try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, 'User ID is required'));
+    }
+
+    const user = await User.findById(id).select('-password'); // exclude sensitive fields
+
+    if (!user) {
+      return res.status(404).json(new ApiResponse(404, null, 'User not found'));
+    }
+
     return res
       .status(200)
-      .json(new ApiResponse(200, req.user, 'User fetched successfully'));
+      .json(new ApiResponse(200, user, 'User fetched successfully'));
   } catch (error) {
+    console.error('Error fetching user:', error);
     return res
       .status(500)
       .json(new ApiResponse(500, null, 'Server error while fetching user'));
