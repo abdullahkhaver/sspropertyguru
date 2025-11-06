@@ -3,6 +3,8 @@ import User from '../models/user.model.js';
 import Franchise from "../models/franchise.model.js";
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import fs from 'fs';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
 export const getAgents = async (req, res) => {
   try {
@@ -90,42 +92,113 @@ export const deleteAgent = async (req, res) => {
 };
 
 
-// ===== NEW FUNCTIONS for Franchise dashboard =====
-
 // Add agent under a franchise
+export const updateAgentInFranchise = async (req, res) => {
+  try {
+    const { agentId, franchiseId } = req.params;
+    const updates = req.body;
+    console.log('Incoming Franchise ID:', franchiseId);
+
+    // ✅ Find the agent first
+    const agent = await User.findOne({
+      _id: agentId,
+      role: 'agent',
+      franchise: franchiseId,
+    });
+    if (!agent) {
+      return res
+        .status(404)
+        .json(ApiError.notFound('Agent not found in this franchise'));
+    }
+
+    let imageUrl = agent.avatar || '';
+    const localPath = req.file?.path;
+
+    // ✅ Handle image upload
+    if (localPath) {
+      try {
+        const uploadResult = await uploadOnCloudinary(localPath);
+        imageUrl = uploadResult?.url || uploadResult?.secure_url || imageUrl;
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+      } catch (err) {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        console.error('Cloudinary upload failed:', err);
+        return res
+          .status(500)
+          .json(ApiError.internal('Failed to upload image to Cloudinary'));
+      }
+    }
+
+    // ✅ Apply updates
+    const updatedAgent = await User.findOneAndUpdate(
+      { _id: agentId, role: 'agent', franchise: franchiseId },
+      { ...updates, avatar: imageUrl, updatedAt: new Date() },
+      { new: true, runValidators: true },
+    ).select('-password');
+
+    return res
+      .status(200)
+      .json(ApiResponse.success('Agent updated successfully', updatedAgent));
+  } catch (error) {
+    console.error('Error updating franchise agent:', error);
+    return res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
 export const addAgentToFranchise = async (req, res) => {
   try {
     const { franchiseId } = req.params;
-    const { name, email, contact, password, avatar } = req.body;
+    const { name, email, contact, password } = req.body;
 
-    console.log('Incoming Franchise ID:', franchiseId);
-
-    const franchise = await Franchise.findById(franchiseId);
-    if (!franchise) {
-      return res.status(404).json(ApiError.notFound('Franchise not found'));
+    if (!name || !email || !password || !contact) {
+      return res
+        .status(400)
+        .json(ApiError.badRequest('All required fields must be provided'));
     }
 
-    const existingAgent = await User.findOne({
-      $or: [{ email }, { contact }],
-    });
-    if (existingAgent) {
+    const franchise = await Franchise.findById(franchiseId);
+    if (!franchise)
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
+
+    const existingAgent = await User.findOne({ $or: [{ email }, { contact }] });
+    if (existingAgent)
       return res
         .status(409)
         .json(
           ApiError.conflict('Agent with this email or contact already exists'),
         );
+
+    // ✅ Handle image upload (optional)
+    let imageUrl = '';
+    const localPath = req.file?.path;
+
+    if (localPath) {
+      try {
+        const uploadResult = await uploadOnCloudinary(localPath);
+        imageUrl = uploadResult?.url || uploadResult?.secure_url || '';
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath); // cleanup
+      } catch (err) {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        console.error('Cloudinary upload failed:', err);
+        return res
+          .status(500)
+          .json(ApiError.internal('Failed to upload image to Cloudinary'));
+      }
     }
 
+    // ✅ Create Agent
     const agent = await User.create({
       name,
       email,
       contact,
-      password,
-      avatar,
+      password, // hashed in pre-save middleware
+      avatar: imageUrl,
       role: 'agent',
       franchise: franchise._id,
+      status: 'active',
     });
 
+    // ✅ Add reference to Franchise
     if (Array.isArray(franchise.agents)) {
       franchise.agents.push(agent._id);
       await franchise.save();
@@ -134,11 +207,11 @@ export const addAgentToFranchise = async (req, res) => {
     return res
       .status(201)
       .json(
-        new ApiResponse(201, agent, 'Agent added to franchise successfully'),
+        new ApiResponse(201, agent, 'Agent added successfully under franchise'),
       );
   } catch (error) {
-    console.error('Error adding agent to franchise:', error);
-    return res.status(500).json(ApiError.internal(error.message));
+    console.error('❌ Error adding agent to franchise:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
 
@@ -173,30 +246,6 @@ export const getAgentsByFranchise = async (req, res) => {
 
 
 // Update agent (franchise scoped)
-export const updateAgentInFranchise = async (req, res) => {
-  try {
-    const { agentId, franchiseId } = req.params;
-    const updates = req.body;
-console.log('Incoming Franchise ID:', franchiseId);
-
-    const agent = await User.findOneAndUpdate(
-      { _id: agentId, role: "agent", franchise: franchiseId },
-      { ...updates, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    ).select("-password");
-
-    if (!agent) {
-      return res.status(404).json(ApiError.notFound("Agent not found in this franchise"));
-    }
-
-    return res
-      .status(200)
-      .json(ApiResponse.success("Agent updated successfully", agent));
-  } catch (error) {
-    console.error("Error updating franchise agent:", error);
-    return res.status(500).json(ApiError.internal(error.message));
-  }
-};
 
 export const deleteAgentInFranchise = async (req, res) => {
   try {

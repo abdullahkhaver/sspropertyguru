@@ -1,7 +1,11 @@
 import Property from '../models/property.model.js';
+import Notification from '../models/notification.model.js';
+import User from '../models/user.model.js';
+
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import {io} from "../../server.js"
 const formatValidationError = (err) => {
   if (err.name === 'ValidationError') {
     const errors = {};
@@ -84,6 +88,29 @@ export const createProperty = async (req, res) => {
 
     const saved = await property.save();
     console.log('Property saved:', saved._id);
+    try {
+      const otherAgents = await User.find({
+        _id: { $ne: agentId },
+        role: 'agent',
+      });
+
+      if (otherAgents.length > 0) {
+        const notifications = otherAgents.map((agent) => ({
+          recipient: agent._id,
+          message: `A new property "${
+            data.title || 'Untitled'
+          }" has been added.`,
+          type: 'property',
+        }));
+
+        await Notification.insertMany(notifications);
+        console.log(`Notifications created for ${otherAgents.length} agents.`);
+      } else {
+        console.log('No other agents found to notify.');
+      }
+    } catch (notifErr) {
+      console.error('Notification creation failed:', notifErr.message);
+    }
 
     return res.status(201).json({
       success: true,

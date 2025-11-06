@@ -48,9 +48,24 @@ const userSchema = new mongoose.Schema(
       select: false,
       default: '',
     },
+    otp: {
+      type: String,
+      select: false,
+    },
+    otpExpires: {
+      type: Date,
+      select: false,
+    },
   },
   { timestamps: true },
 );
+userSchema.pre('save', async function (next) {
+  if (this.role === 'agent' && this.isNew) {
+    this.status = 'inactive';
+  }
+  next();
+});
+
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();

@@ -20,6 +20,9 @@ import superAdminDashboardRoutes from "./routes/superAdminDashboard.route.js";
 import districtRoutes from "./routes/district.route.js"
 import areaRoutes from "./routes/area.route.js"
 import franchiseDashboardRoutes from './routes/franchiseDashboard.route.js';
+import requirementRoutes from "./routes/requirement.route.js"
+import notificationRoutes from './routes/notification.route.js';
+
 const app = express();
 
 // Global Middlewares
@@ -57,6 +60,8 @@ app.use('/api/v1/speradmindashboard', superAdminDashboardRoutes);
 app.use('/api/v1/districts', districtRoutes);
 app.use('/api/v1/areas', areaRoutes);
 app.use('/api/v1/franchise', franchiseDashboardRoutes);
+app.use('/api/v1/requirements',requirementRoutes)
+app.use('/api/v1/notifications', notificationRoutes);
 
 // 404 Handler
 app.use(notFoundHandler);

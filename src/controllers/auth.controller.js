@@ -1,7 +1,9 @@
 import fs from 'fs';
 import User from '../models/user.model.js';
 import Franchise from '../models/franchise.model.js';
-
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { sendEmail } from '../utils/sendEmail.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
@@ -269,5 +271,87 @@ export const getMe = async (req, res) => {
     return res
       .status(500)
       .json(new ApiResponse(500, null, 'Server error while fetching user'));
+  }
+};
+
+
+
+/**
+ * @route POST /api/v1/auth/forgot-password
+ * @desc Send OTP to user's email
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json(ApiError.badRequest("Email required"));
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json(ApiError.notFound("No user with this email"));
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+
+    user.otp = hashedOtp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // valid for 10 min
+    await user.save();
+
+    await sendEmail(user.email, "Password Reset OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+
+    res.status(200).json(new ApiResponse(200, null, "OTP sent to your email"));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiError.internal("Error sending OTP"));
+  }
+};
+
+/**
+ * @route POST /api/v1/auth/verify-otp
+ * @desc Verify OTP
+ */
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json(ApiError.badRequest("Email and OTP required"));
+
+    const user = await User.findOne({ email }).select("+otp +otpExpires");
+    if (!user) return res.status(404).json(ApiError.notFound("User not found"));
+
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+    if (user.otp !== hashedOtp || Date.now() > user.otpExpires) {
+      return res.status(400).json(ApiError.badRequest("Invalid or expired OTP"));
+    }
+
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    res.status(200).json(new ApiResponse(200, null, "OTP verified successfully"));
+  } catch (err) {
+    res.status(500).json(ApiError.internal("Error verifying OTP"));
+  }
+};
+
+/**
+ * @route POST /api/v1/auth/reset-password
+ * @desc Reset password after OTP verification
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json(ApiError.badRequest("Email and new password required"));
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json(ApiError.notFound("User not found"));
+
+    // const salt = await bcrypt.genSalt(10);
+    // user.password = await bcrypt.hash(newPassword, salt);
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json(new ApiResponse(200, null, "Password reset successful"));
+  } catch (err) {
+    res.status(500).json(ApiError.internal("Error resetting password"));
   }
 };

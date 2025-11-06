@@ -1,4 +1,3 @@
-
 import express from 'express';
 import {
   getAgents,
@@ -11,6 +10,7 @@ import {
   updateAgentInFranchise,
   deleteAgentInFranchise,
 } from '../controllers/agent.controller.js';
+import {upload} from "../middleware/multer.js";
 
 const router = express.Router();
 
@@ -21,8 +21,8 @@ router.put('/:id', editAgent);
 router.delete('/:id', deleteAgent);
 
 // Franchise related routes
-router.post('/:franchiseId/agents', addAgentToFranchise);
+router.post('/:franchiseId/agents', upload.single('image'),addAgentToFranchise);
 router.get('/:franchiseId/agents', getAgentsByFranchise);
-router.put('/:franchiseId/agents/:agentId', updateAgentInFranchise);
+router.put('/:franchiseId/agents/:agentId',upload.single('image'), updateAgentInFranchise);
 router.delete('/:franchiseId/agents/:agentId', deleteAgentInFranchise);
 export default router;

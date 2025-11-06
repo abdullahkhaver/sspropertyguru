@@ -1,12 +1,12 @@
-// controllers/franchise.controller.js
-import Franchise from '../models/franchise.model.js';
+import fs from 'fs';
 import bcrypt from 'bcryptjs';
-
+import Franchise from '../models/franchise.model.js';
 import User from '../models/user.model.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
+// ✅ CREATE FRANCHISE
 export const createFranchise = async (req, res) => {
   try {
     const {
@@ -19,7 +19,6 @@ export const createFranchise = async (req, res) => {
       status,
     } = req.body;
 
-    // Basic validation
     if (
       !fullName ||
       !email ||
@@ -30,40 +29,52 @@ export const createFranchise = async (req, res) => {
     ) {
       return res
         .status(400)
-        .json(new ApiError(400, 'All required fields must be provided'));
+        .json(ApiError.badRequest('All required fields must be provided'));
     }
 
     if (password !== confirmPassword) {
-      return res.status(400).json(new ApiError(400, 'Passwords do not match'));
+      return res
+        .status(400)
+        .json(ApiError.badRequest('Passwords do not match'));
     }
 
-    // Check if email already exists in User
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json(new ApiError(400, 'Email already exists'));
+      return res.status(409).json(ApiError.conflict('Email already exists'));
     }
 
-    // Handle image upload (optional)
+    // ✅ Handle image upload (optional)
     let imageUrl = '';
-    if (req.file) {
-      const uploadResult = await uploadOnCloudinary(req.file.path);
-      imageUrl = uploadResult?.secure_url;
+    const localPath = req.file?.path;
+
+    if (localPath) {
+      try {
+        const uploadResult = await uploadOnCloudinary(localPath);
+        imageUrl = uploadResult?.url || uploadResult?.secure_url || '';
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath); // cleanup temp file
+      } catch (err) {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+        console.error('Cloudinary upload failed:', err);
+        return res
+          .status(500)
+          .json(ApiError.internal('Failed to upload image to Cloudinary'));
+      }
     }
 
-    // Create User with role 'franchise'
+    // ✅ Create User with role = 'franchise'
     const user = await User.create({
       name: fullName,
       email,
-      password, // will be hashed by User model pre-save hook
+      password, // hashed via pre-save
       contact,
       role: 'franchise',
       avatar: imageUrl,
       status: 'active',
     });
 
-    // Create Franchise record
+    // ✅ Create Franchise record
     const franchise = await Franchise.create({
-      user : user._id,
+      user: user._id,
       fullName,
       email,
       password, // hashed by Franchise model pre-save
@@ -83,17 +94,17 @@ export const createFranchise = async (req, res) => {
         ),
       );
   } catch (error) {
-    console.error('Error creating franchise:', error);
-    return res.status(500).json(new ApiError(500, 'Server error'));
+    console.error('❌ Error creating franchise:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
 
-export const getAllFranchises = async (req, res, next) => {
+// ✅ GET ALL
+export const getAllFranchises = async (req, res) => {
   try {
     const franchises = await Franchise.find().sort({ createdAt: -1 });
-
-    if (!franchises || franchises.length === 0) {
-      return res.status(404).json(new ApiError(404, 'No franchises found'));
+    if (!franchises.length) {
+      return res.status(404).json(ApiError.notFound('No franchises found'));
     }
 
     return res
@@ -102,19 +113,17 @@ export const getAllFranchises = async (req, res, next) => {
         new ApiResponse(200, franchises, 'Franchises fetched successfully'),
       );
   } catch (error) {
-    console.error('Error fetching franchises:', error);
-    return res
-      .status(500)
-      .json(new ApiError(500, 'Internal server error', error.message));
+    console.error('❌ Error fetching franchises:', error);
+    return res.status(500).json(ApiError.internal('Internal server error'));
   }
 };
 
+// ✅ EDIT
 export const editFranchise = async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
 
-    // If password is being updated, hash it
     if (updates.password) {
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(updates.password, salt);
@@ -123,18 +132,15 @@ export const editFranchise = async (req, res) => {
     const franchise = await Franchise.findByIdAndUpdate(id, updates, {
       new: true,
     });
+    if (!franchise)
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
 
-    if (!franchise) {
-      return res.status(404).json(new ApiError(404, 'Franchise not found'));
-    }
-
-    // update user record as well
+    // sync to User
     await User.findOneAndUpdate(
       { email: franchise.email },
       {
         name: franchise.fullName,
         contact: franchise.contact,
-        city: franchise.city,
         ...(updates.password && { password: updates.password }),
       },
     );
@@ -143,102 +149,74 @@ export const editFranchise = async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, franchise, 'Franchise updated successfully'));
   } catch (error) {
-    console.error('Error editing franchise:', error);
-    return res
-      .status(500)
-      .json(new ApiError(500, 'Internal server error', error.message));
+    console.error('❌ Error editing franchise:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
 
-/**
- * 🗑️ Delete franchise
- */
+// ✅ DELETE
 export const deleteFranchise = async (req, res) => {
   try {
     const { id } = req.params;
-
     const franchise = await Franchise.findByIdAndDelete(id);
+    if (!franchise)
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
 
-    if (!franchise) {
-      return res.status(404).json(new ApiError(404, 'Franchise not found'));
-    }
-
-    // also remove the corresponding user with role: franchise
     await User.findOneAndDelete({ email: franchise.email });
 
     return res
       .status(200)
       .json(new ApiResponse(200, null, 'Franchise deleted successfully'));
   } catch (error) {
-    console.error('Error deleting franchise:', error);
-    return res
-      .status(500)
-      .json(new ApiError(500, 'Internal server error', error.message));
+    console.error('❌ Error deleting franchise:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
 
-// controllers/franchise.controller.js
+// ✅ TOGGLE STATUS
 export const toggleFranchiseStatus = async (req, res) => {
   try {
     const { id } = req.params;
-
     const franchise = await Franchise.findById(id);
-    if (!franchise) {
-      return res.status(404).json(new ApiError(404, "Franchise not found"));
-    }
+    if (!franchise)
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
 
-    // toggle between approved and pending (you can extend with rejected later)
-    franchise.status =
-      franchise.status === "approved" ? "pending" : "approved";
+    franchise.status = franchise.status === 'approved' ? 'pending' : 'approved';
 
     await franchise.save();
-
-    return res.status(200).json(
-      new ApiResponse(200, franchise, "Franchise status updated successfully")
-    );
+    return res
+      .status(200)
+      .json(new ApiResponse(200, franchise, 'Franchise status updated'));
   } catch (error) {
-    console.error("Error toggling franchise status:", error);
-    return res.status(500).json(new ApiError(500, "Internal server error", error.message));
+    console.error('❌ Error toggling franchise status:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
 
+// ✅ GET BY ID
 export const getFranchiseById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    // Check if ID is provided
-    if (!id) {
+    if (!id)
       return res
         .status(400)
-        .json(new ApiError(400, 'Franchise ID is required'));
-    }
+        .json(ApiError.badRequest('Franchise ID is required'));
 
-    // Find franchise and populate its related user data
     const franchise = await Franchise.findById(id)
       .populate({
         path: 'user',
-        select: 'name email contact avatar role status createdAt', // select only required fields
+        select: 'name email contact avatar role status createdAt',
       })
       .lean();
 
-    // If not found
-    if (!franchise) {
-      return res.status(404).json(new ApiError(404, 'Franchise not found'));
-    }
+    if (!franchise)
+      return res.status(404).json(ApiError.notFound('Franchise not found'));
 
     return res
       .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          franchise,
-          'Franchise details fetched successfully',
-        ),
-      );
+      .json(new ApiResponse(200, franchise, 'Franchise details fetched'));
   } catch (error) {
-    console.error('Error fetching franchise details:', error);
-    return res
-      .status(500)
-      .json(new ApiError(500, 'Internal server error', error.message));
+    console.error('❌ Error fetching franchise by id:', error);
+    return res.status(500).json(ApiError.internal('Server error'));
   }
 };
