@@ -22,6 +22,7 @@ import areaRoutes from "./routes/area.route.js"
 import franchiseDashboardRoutes from './routes/franchiseDashboard.route.js';
 import requirementRoutes from "./routes/requirement.route.js"
 import notificationRoutes from './routes/notification.route.js';
+import streamRoutes from './routes/stream.route.js';
 
 const app = express();
 
@@ -62,7 +63,7 @@ app.use('/api/v1/areas', areaRoutes);
 app.use('/api/v1/franchise', franchiseDashboardRoutes);
 app.use('/api/v1/requirements',requirementRoutes)
 app.use('/api/v1/notifications', notificationRoutes);
-
+app.use('/api/v1/stream', streamRoutes);
 // 404 Handler
 app.use(notFoundHandler);
 // Error Handler
