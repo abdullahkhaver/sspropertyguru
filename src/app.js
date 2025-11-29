@@ -32,8 +32,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 const allowedOrigins = [
   'https://sspropertyguru.com',
-  'http://localhost:5173',
-  'https://sspropertyguru.itkhaver.com',
 ];
 
 app.use(
