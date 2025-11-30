@@ -30,9 +30,14 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// const allowedOrigins = [
+//   'https://sspropertyguru.com',
+// ];
 const allowedOrigins = [
   'https://sspropertyguru.com',
+  'https://www.sspropertyguru.com',
 ];
+
 
 app.use(
   cors({
