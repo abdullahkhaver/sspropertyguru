@@ -11,9 +11,9 @@ dotenv.config();
 //   timeout: 60000, // 60 seconds
 // });
 cloudinary.config({
-  cloud_name: 'sspropertuguru',
-  api_key: '368371565227927',
-  api_secret: '-TYEEn87b3HkdZKxoSR9wb8KsnE',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:  process.env.CLOUDINARY_API_KEY,
+  api_secret:  process.env.CLOUDINARY_API_SECRET,
   timeout: 60000, // 60 seconds
 });
 const uploadOnCloudinary = async (
