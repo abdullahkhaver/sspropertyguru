@@ -43,30 +43,32 @@ export const signup = async (req, res) => {
     }
 
     // Avatar upload
-    const avatarLocalPath = req.file?.path;
-    if (!avatarLocalPath) {
-      return res
-        .status(400)
-        .json(ApiError.badRequest('Avatar file is required'));
+// Avatar upload (OPTIONAL)
+let avatar = null;
+
+if (req.file?.path) {
+  const avatarLocalPath = req.file.path;
+
+  try {
+    const uploadedAvatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if (uploadedAvatar?.url) {
+      avatar = uploadedAvatar.url;
     }
 
-    let avatar;
-    try {
-      avatar = await uploadOnCloudinary(avatarLocalPath);
-      if (!avatar || !avatar.url) {
-        return res
-          .status(500)
-          .json(
-            ApiError.internal('Avatar upload failed. Please try again.'),
-          );
-      }
-      if (fs.existsSync(avatarLocalPath)) fs.unlinkSync(avatarLocalPath);
-    } catch (err) {
-      if (fs.existsSync(avatarLocalPath)) fs.unlinkSync(avatarLocalPath);
-      return res
-        .status(500)
-        .json(ApiError.internal('Failed to upload avatar'));
+    if (fs.existsSync(avatarLocalPath)) {
+      fs.unlinkSync(avatarLocalPath);
     }
+  } catch (err) {
+    if (fs.existsSync(avatarLocalPath)) {
+      fs.unlinkSync(avatarLocalPath);
+    }
+    return res
+      .status(500)
+      .json(ApiError.internal('Failed to upload avatar'));
+  }
+}
+
 
     const user = await User.create({
       name,
@@ -74,7 +76,7 @@ export const signup = async (req, res) => {
       email,
       password,
       role: finalRole,
-      avatar: avatar?.url || '',
+      avatar,
       franchise: franchiseDoc ? franchiseDoc._id : null,
     });
 

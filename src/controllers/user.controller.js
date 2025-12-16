@@ -20,7 +20,7 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-// ✅ Get all users (role = "user")
+// Get all users (role = "user")
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({ role: "user" }).select("-password");
