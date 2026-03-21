@@ -1,0 +1,359 @@
+import fs from 'fs';
+import User from '../models/user.model.js';
+import Franchise from '../models/franchise.model.js';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { sendEmail } from '../utils/sendEmail.js';
+import { ApiError } from '../utils/ApiError.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
+import generateToken from '../utils/generateToken.js';
+export const signup = async (req, res) => {
+  try {
+    const { name, contact, phone, email, password, role, franchise } = req.body;
+    const userContact = contact || phone;
+
+    if (!name || !userContact || !email || !password) {
+      return res
+        .status(400)
+        .json(ApiError.badRequest('All fields are required (name, email, password, and contact/phone)'));
+    }
+
+    const allowedRoles = ['user', 'agent', 'franchise', 'superadmin'];
+    const finalRole = allowedRoles.includes(role) ? role : 'user';
+
+    const existedUser = await User.findOne({
+      $or: [{ contact: userContact }, { email }],
+    });
+    if (existedUser) {
+      return res
+        .status(409)
+        .json(
+          new ApiError('User with this email or contact already exists'),
+        );
+    }
+
+    let franchiseDoc = null;
+    if (franchise) {
+      franchiseDoc = await Franchise.findById(franchise);
+      if (!franchiseDoc) {
+        return res
+          .status(404)
+          .json(ApiError.notFound('Franchise not found'));
+      }
+    }
+
+    // Avatar upload
+// Avatar upload (OPTIONAL)
+let avatar = null;
+
+if (req.file?.path) {
+  const avatarLocalPath = req.file.path;
+
+  try {
+    const uploadedAvatar = await uploadOnCloudinary(avatarLocalPath);
+
+    if (uploadedAvatar?.url) {
+      avatar = uploadedAvatar.url;
+    }
+
+    if (fs.existsSync(avatarLocalPath)) {
+      fs.unlinkSync(avatarLocalPath);
+    }
+  } catch (err) {
+    if (fs.existsSync(avatarLocalPath)) {
+      fs.unlinkSync(avatarLocalPath);
+    }
+    return res
+      .status(500)
+      .json(ApiError.internal('Failed to upload avatar'));
+  }
+}
+
+
+    const user = await User.create({
+      name,
+      contact: userContact,
+      email,
+      password,
+      role: finalRole,
+      avatar,
+      franchise: franchiseDoc ? franchiseDoc._id : null,
+    });
+
+    if (finalRole === 'agent' && franchiseDoc) {
+      await Franchise.findByIdAndUpdate(franchiseDoc._id, {
+        $push: { agents: user._id },
+      });
+    }
+
+    const createdUser = await User.findById(user._id).select(
+      '-password -refreshToken',
+    );
+
+    if (!createdUser) {
+      return res
+        .status(500)
+        .json(
+          ApiError.internal(
+            'Something went wrong while registering the user',
+          ),
+        );
+    }
+
+    const token = generateToken(user);
+
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    });
+
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(
+          201,
+          { user: createdUser, token },
+          'User registered successfully',
+        ),
+      );
+  } catch (err) {
+    console.error('Signup error:', err);
+
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyValue)[0];
+      return res
+        .status(409)
+        .json(new ApiError(409, `User with this ${field} already exists`));
+    }
+
+    return res
+      .status(500)
+      .json(
+        ApiError.internal('Something went wrong while registering user'),
+      );
+  }
+};
+export const signin = async (req, res) => {
+  try {
+    const { identifier, email, contact, password } = req.body;
+    const id = identifier || email || contact;
+
+    if (!id || !password) {
+      return res
+        .status(400)
+        .json(
+          ApiError.badRequest(
+            'Identifier (email/contact) and password are required',
+          ),
+        );
+    }
+
+    const user = await User.findOne({
+      $or: [{ email: id }, { contact: id }],
+    }).select('+password +refreshToken');
+
+    if (!user) {
+      return res
+        .status(404)
+        .json(ApiError.notFound('User does not exist'));
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res
+        .status(401)
+        .json(ApiError.unauthorized('Invalid credentials'));
+    }
+
+    if (
+      user.status === 'inactive' ||
+      user.status === 'pending' ||
+      user.status === 'rejected'
+    ) {
+      return res
+        .status(403)
+        .json(
+          ApiError.forbidden(
+
+            'Your account is inactive. Please contact the administrator.',
+          ),
+        );
+    }
+
+    if (user.role === 'franchise') {
+      const franchise = await Franchise.findOne({ email: user.email });
+      if (franchise && !user.franchise) {
+        user.franchise = franchise._id;
+        await user.save();
+      }
+
+      // Check if franchise record itself is inactive
+      if (franchise && franchise.status === 'inactive' || franchise.status === 'rejected' || franchise.status === 'pending') {
+        return res
+          .status(403)
+          .json(
+            ApiError.forbidden(
+
+              'Your franchise account is inactive. Please contact the administrator.',
+            ),
+          );
+      }
+    }
+
+if (user.role === 'agent') {
+  const franchise = user.franchise
+    ? await Franchise.findById(user.franchise)
+    : null;
+
+  if (
+    franchise &&
+    ['inactive', 'rejected', 'pending'].includes(franchise.status)
+  ) {
+    return res
+      .status(403)
+      .json(
+        ApiError.forbidden(
+          'Your franchise is inactive. Please contact the administrator.',
+        ),
+      );
+  }
+}
+
+
+    const token = generateToken(user);
+
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    });
+
+    const safeUser = await User.findById(user._id)
+      .select('-password -refreshToken')
+      .populate('franchise', 'name email status');
+
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, { user: safeUser, token }, 'Login successful'),
+      );
+  } catch (err) {
+    console.error('Login error:', err);
+    return res
+      .status(500)
+      .json(ApiError.internal('Something went wrong while logging in'));
+  }
+};
+
+export const getMe = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res
+        .status(400)
+        .json(new ApiResponse(400, null, 'User ID is required'));
+    }
+
+    const user = await User.findById(id).select('-password'); // exclude sensitive fields
+
+    if (!user) {
+      return res.status(404).json(new ApiResponse(404, null, 'User not found'));
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, user, 'User fetched successfully'));
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    return res
+      .status(500)
+      .json(new ApiResponse(500, null, 'Server error while fetching user'));
+  }
+};
+
+
+
+/**
+ * @route POST /api/v1/auth/forgot-password
+ * @desc Send OTP to user's email
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json(ApiError.badRequest("Email required"));
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json(ApiError.notFound("No user with this email"));
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+
+    user.otp = hashedOtp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // valid for 10 min
+    await user.save();
+
+    await sendEmail(user.email, "Password Reset OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+
+    res.status(200).json(new ApiResponse(200, null, "OTP sent to your email"));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json(ApiError.internal("Error sending OTP"));
+  }
+};
+
+/**
+ * @route POST /api/v1/auth/verify-otp
+ * @desc Verify OTP
+ */
+export const verifyOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json(ApiError.badRequest("Email and OTP required"));
+
+    const user = await User.findOne({ email }).select("+otp +otpExpires");
+    if (!user) return res.status(404).json(ApiError.notFound("User not found"));
+
+    const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
+    if (user.otp !== hashedOtp || Date.now() > user.otpExpires) {
+      return res.status(400).json(ApiError.badRequest("Invalid or expired OTP"));
+    }
+
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    res.status(200).json(new ApiResponse(200, null, "OTP verified successfully"));
+  } catch (err) {
+    res.status(500).json(ApiError.internal("Error verifying OTP"));
+  }
+};
+
+/**
+ * @route POST /api/v1/auth/reset-password
+ * @desc Reset password after OTP verification
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    if (!email || !newPassword) {
+      return res.status(400).json(ApiError.badRequest("Email and new password required"));
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json(ApiError.notFound("User not found"));
+
+    // const salt = await bcrypt.genSalt(10);
+    // user.password = await bcrypt.hash(newPassword, salt);
+    user.password = newPassword;
+    await user.save();
+
+    res.status(200).json(new ApiResponse(200, null, "Password reset successful"));
+  } catch (err) {
+    res.status(500).json(ApiError.internal("Error resetting password"));
+  }
+};
