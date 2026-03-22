@@ -60,8 +60,13 @@ const userSchema = new mongoose.Schema(
   { timestamps: true },
 );
 userSchema.pre('save', async function (next) {
+  // Only set inactive status for agents on creation
   if (this.role === 'agent' && this.isNew) {
     this.status = 'inactive';
+  }
+  // Set active status for regular users on creation
+  if ((this.role === 'user' || !this.role) && this.isNew && !this.status) {
+    this.status = 'active';
   }
   next();
 });
