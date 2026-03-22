@@ -1,45 +1,59 @@
 import nodemailer from 'nodemailer';
 
 export const sendEmail = async (to, subject, text) => {
-  // Check if using Resend API (recommended for Railway)
+  // Primary: Resend API (works on Railway)
   if (process.env.RESEND_API_KEY) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
     try {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
           to: [to],
           subject: subject,
-          text: text
-        })
+          text: text,
+        }),
+        signal: controller.signal,
       });
-      
+
+      clearTimeout(timeout);
+
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`Resend API error: ${response.status}`);
+        console.error('[EMAIL] Resend error response:', JSON.stringify(data));
+        throw new Error(`Resend API error: ${response.status} - ${data?.message || 'Unknown error'}`);
       }
-      
-      console.log('[EMAIL] Sent via Resend successfully');
+
+      console.log('[EMAIL] Sent via Resend successfully to:', to);
       return;
     } catch (error) {
+      clearTimeout(timeout);
       console.error('[EMAIL] Resend failed:', error.message);
       throw error;
     }
   }
-  
-  // Fallback to Gmail SMTP
+
+  // Fallback: Gmail SMTP (may be blocked on Railway)
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error('No email provider configured. Set RESEND_API_KEY or SMTP_USER/SMTP_PASS.');
+  }
+
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    connectionTimeout: 30000, // 30 seconds
-    greetingTimeout: 30000,
-    socketTimeout: 30000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
   });
 
   await transporter.sendMail({
@@ -48,4 +62,6 @@ export const sendEmail = async (to, subject, text) => {
     subject,
     text,
   });
+
+  console.log('[EMAIL] Sent via Gmail SMTP to:', to);
 };
