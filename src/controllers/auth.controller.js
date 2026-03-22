@@ -124,7 +124,7 @@ export const signup = async (req, res) => {
       user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
       await user.save();
 
-      // Send OTP email with timeout
+      // Send OTP email with 30 second timeout
       const emailPromise = sendEmail(
         user.email,
         'Verify Your Email - SS Property Guru',
@@ -132,7 +132,7 @@ export const signup = async (req, res) => {
       );
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email send timeout')), 10000)
+        setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), 30000)
       );
       
       await Promise.race([emailPromise, timeoutPromise]);
