@@ -18,8 +18,6 @@ export const errorHandler = (err, req, res, next) => {
     success: false,
     message: 'Internal Server Error',
     error: err.message || 'Unknown error',
-    errorName: err.name,
-    errorStack: err.stack,
     timestamp: new Date().toISOString(),
   });
 };

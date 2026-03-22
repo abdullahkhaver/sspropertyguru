@@ -33,6 +33,17 @@ app.use((req, res, next) => {
 
 // Global Middlewares
 app.use(express.json());
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    console.error('[DEBUG] Malformed JSON Body:', err.message);
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON payload received',
+      error: err.message
+    });
+  }
+  next();
+});
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 // const allowedOrigins = [
