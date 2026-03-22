@@ -115,18 +115,27 @@ export const signup = async (req, res) => {
         .json(ApiError.internal('Something went wrong while registering the user').toJSON());
     }
 
-    // OTP Email - Temporarily disabled due to Railway SMTP restrictions
-    // TODO: Enable when Resend.com is configured
-    // Generate OTP for future use
+    // Generate and send OTP for email verification
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
     
     user.otp = hashedOtp;
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
-    
-    console.log('[SIGNUP] OTP generated but email disabled. OTP for testing:', otp);
-    console.log('[SIGNUP] To enable emails, add RESEND_API_KEY to Railway Variables');
+
+    // Send OTP email (async - don't block signup)
+    sendEmail(
+      user.email,
+      'Verify Your Email - SS Property Guru',
+      `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
+    )
+      .then(() => {
+        console.log('[SIGNUP SUCCESS] OTP email sent to:', user.email);
+      })
+      .catch((emailError) => {
+        console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
+        console.log('[SIGNUP] OTP for manual testing:', otp);
+      });
 
     const token = generateToken(user);
 
@@ -144,7 +153,7 @@ export const signup = async (req, res) => {
         new ApiResponse(
           201,
           { user: createdUser, token },
-          'User registered successfully.',
+          'User registered successfully. Please check your email for OTP verification.',
         ),
       );
   } catch (err) {
