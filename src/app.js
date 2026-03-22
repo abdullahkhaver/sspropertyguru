@@ -33,6 +33,8 @@ app.use((req, res, next) => {
 
 // Global Middlewares
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// JSON parse error handler (must come AFTER express.json())
 app.use((err, req, res, next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     console.error('[DEBUG] Malformed JSON Body:', err.message);
@@ -44,7 +46,6 @@ app.use((err, req, res, next) => {
   }
   next();
 });
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 // const allowedOrigins = [
 //   'https://sspropertyguru.com',
