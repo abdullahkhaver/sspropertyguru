@@ -177,14 +177,10 @@ export const signin = async (req, res) => {
     const { identifier, email, contact, password } = req.body;
     const id = identifier || email || contact;
 
+    console.log('[SIGNIN DEBUG] Attempting login for:', id);
+
     if (!id || !password) {
-      return res
-        .status(400)
-        .json(
-          ApiError.badRequest(
-            'Identifier (email/contact) and password are required',
-          ),
-        );
+      return res.status(400).json(ApiError.badRequest('Identifier (email/contact) and password are required').toJSON());
     }
 
     const user = await User.findOne({
@@ -192,31 +188,22 @@ export const signin = async (req, res) => {
     }).select('+password +refreshToken');
 
     if (!user) {
-      return res
-        .status(404)
-        .json(ApiError.notFound('User does not exist'));
+      console.log('[SIGNIN ERROR] User not found:', id);
+      return res.status(404).json(ApiError.notFound('User does not exist').toJSON());
     }
+
+    console.log('[SIGNIN DEBUG] User found:', user.email, '| Status:', user.status, '| Role:', user.role);
 
     const isMatch = await user.comparePassword(password);
+    console.log('[SIGNIN DEBUG] Password match:', isMatch);
+    
     if (!isMatch) {
-      return res
-        .status(401)
-        .json(ApiError.unauthorized('Invalid credentials'));
+      return res.status(401).json(ApiError.unauthorized('Invalid credentials').toJSON());
     }
 
-    if (
-      user.status === 'inactive' ||
-      user.status === 'pending' ||
-      user.status === 'rejected'
-    ) {
-      return res
-        .status(403)
-        .json(
-          ApiError.forbidden(
-
-            'Your account is inactive. Please contact the administrator.',
-          ),
-        );
+    if (user.status === 'inactive' || user.status === 'pending' || user.status === 'rejected') {
+      console.log('[SIGNIN ERROR] Account inactive, status:', user.status);
+      return res.status(403).json(ApiError.forbidden('Your account is inactive. Please contact the administrator.').toJSON());
     }
 
     if (user.role === 'franchise') {
