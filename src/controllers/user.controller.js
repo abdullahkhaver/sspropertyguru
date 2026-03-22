@@ -20,6 +20,20 @@ export const deleteUser = async (req, res) => {
   }
 };
 
+// Get single user by ID
+export const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id).select('-password');
+    if (!user) {
+      return res.status(404).json(new ApiResponse(404, null, 'User not found'));
+    }
+    return res.status(200).json(new ApiResponse(200, user, 'User fetched successfully'));
+  } catch (error) {
+    return res.status(500).json(ApiError.internal(error.message));
+  }
+};
+
 // Get all users (role = "user")
 export const getAllUsers = async (req, res) => {
   try {

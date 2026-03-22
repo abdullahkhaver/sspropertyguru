@@ -284,6 +284,67 @@ export const deleteAgentInFranchise = async (req, res) => {
   }
 };
 
+// GET /api/v1/agents/me - Get logged-in agent's own profile
+export const getAgentMe = async (req, res) => {
+  try {
+    const token = req.cookies?.jwt || req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json(new ApiError(401, 'Not authorized'));
+    }
+    const jwt = await import('jsonwebtoken');
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    const agent = await User.findOne({ _id: decoded.id, role: 'agent' })
+      .select('-password')
+      .populate('franchise', 'name email status');
+    if (!agent) {
+      return res.status(404).json(new ApiError(404, 'Agent not found'));
+    }
+    return res.status(200).json(new ApiResponse(200, agent, 'Agent profile fetched'));
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, 'Error fetching agent profile'));
+  }
+};
+
+// PATCH /api/v1/agents/update-profile - Update logged-in agent's profile
+export const updateAgentProfile = async (req, res) => {
+  try {
+    const token = req.cookies?.jwt || req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json(new ApiError(401, 'Not authorized'));
+    }
+    const jwt = await import('jsonwebtoken');
+    const decoded = jwt.default.verify(token, process.env.JWT_SECRET);
+    const updates = { ...req.body };
+    delete updates.role;
+    delete updates.password;
+
+    // Handle avatar upload
+    if (req.file?.path) {
+      try {
+        const uploadResult = await uploadOnCloudinary(req.file.path);
+        if (uploadResult?.url) updates.avatar = uploadResult.url;
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      } catch (err) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        console.error('Avatar upload failed:', err);
+      }
+    }
+
+    const updated = await User.findOneAndUpdate(
+      { _id: decoded.id, role: 'agent' },
+      { ...updates, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updated) {
+      return res.status(404).json(new ApiError(404, 'Agent not found'));
+    }
+    return res.status(200).json(new ApiResponse(200, updated, 'Profile updated successfully'));
+  } catch (error) {
+    return res.status(500).json(new ApiError(500, 'Error updating agent profile'));
+  }
+};
+
 // Toggle Agent Status (Active <-> Inactive)
 export const toggleAgentStatus = async (req, res) => {
   try {

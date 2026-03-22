@@ -362,17 +362,16 @@ export const verifyOtp = async (req, res) => {
  */
 export const resetPassword = async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
-    if (!email || !newPassword) {
+    const { email, newPassword, password } = req.body;
+    const finalPassword = newPassword || password;
+    if (!email || !finalPassword) {
       return res.status(400).json(ApiError.badRequest("Email and new password required"));
     }
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json(ApiError.notFound("User not found"));
 
-    // const salt = await bcrypt.genSalt(10);
-    // user.password = await bcrypt.hash(newPassword, salt);
-    user.password = newPassword;
+    user.password = finalPassword;
     await user.save();
 
     res.status(200).json(new ApiResponse(200, null, "Password reset successful"));

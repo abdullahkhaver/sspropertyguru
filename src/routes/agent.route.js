@@ -5,6 +5,8 @@ import {
   editAgent,
   getFiveAgents,
   toggleAgentStatus,
+  getAgentMe,
+  updateAgentProfile,
   addAgentToFranchise,
   getAgentsByFranchise,
   updateAgentInFranchise,
@@ -17,6 +19,8 @@ const router = express.Router();
 router.get('/', getAgents);
 router.patch('/:agentId/toggle-status', toggleAgentStatus);
 router.get('/top5', getFiveAgents);
+router.get('/me', getAgentMe);
+router.patch('/update-profile', upload.single('avatar'), updateAgentProfile);
 router.put('/:id', editAgent);
 router.delete('/:id', deleteAgent);
 
