@@ -115,33 +115,18 @@ export const signup = async (req, res) => {
         .json(ApiError.internal('Something went wrong while registering the user').toJSON());
     }
 
-    // Generate and send OTP for email verification
-    try {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
-      
-      user.otp = hashedOtp;
-      user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-      await user.save();
-
-      // Send OTP email with 30 second timeout
-      const emailPromise = sendEmail(
-        user.email,
-        'Verify Your Email - SS Property Guru',
-        `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
-      );
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), 30000)
-      );
-      
-      await Promise.race([emailPromise, timeoutPromise]);
-      console.log('[SIGNUP SUCCESS] OTP sent to:', user.email);
-    } catch (emailError) {
-      console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
-      // Don't fail signup if email fails - user can request OTP again later
-      console.log('[SIGNUP] Continuing without OTP email - user can request resend');
-    }
+    // OTP Email - Temporarily disabled due to Railway SMTP restrictions
+    // TODO: Enable when Resend.com is configured
+    // Generate OTP for future use
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
+    
+    user.otp = hashedOtp;
+    user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save();
+    
+    console.log('[SIGNUP] OTP generated but email disabled. OTP for testing:', otp);
+    console.log('[SIGNUP] To enable emails, add RESEND_API_KEY to Railway Variables');
 
     const token = generateToken(user);
 
@@ -159,7 +144,7 @@ export const signup = async (req, res) => {
         new ApiResponse(
           201,
           { user: createdUser, token },
-          'User registered successfully. Please check your email for OTP verification.',
+          'User registered successfully.',
         ),
       );
   } catch (err) {
