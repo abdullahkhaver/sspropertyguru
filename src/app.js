@@ -25,6 +25,11 @@ import notificationRoutes from './routes/notification.route.js';
 import streamRoutes from './routes/stream.route.js';
 
 const app = express();
+app.use((req, res, next) => {
+  console.log(`[DEBUG] ${req.method} ${req.url}`);
+  console.log('[DEBUG] Headers:', JSON.stringify(req.headers));
+  next();
+});
 
 // Global Middlewares
 app.use(express.json());
