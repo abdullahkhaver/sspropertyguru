@@ -46,33 +46,46 @@ export const signup = async (req, res) => {
       }
     }
 
-    // Avatar upload
-// Avatar upload (OPTIONAL)
-let avatar = null;
+    // Avatar upload (OPTIONAL)
+    let avatar = null;
 
-if (req.file?.path) {
-  const avatarLocalPath = req.file.path;
+    if (req.file?.path) {
+      const avatarLocalPath = req.file.path;
 
-  try {
-    const uploadedAvatar = await uploadOnCloudinary(avatarLocalPath);
+      try {
+        console.log('[SIGNUP] Starting avatar upload to Cloudinary...');
+        
+        // Add timeout wrapper for Cloudinary upload
+        const uploadPromise = uploadOnCloudinary(avatarLocalPath);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Cloudinary upload timeout')), 30000)
+        );
+        
+        const uploadedAvatar = await Promise.race([uploadPromise, timeoutPromise]);
 
-    if (uploadedAvatar?.url) {
-      avatar = uploadedAvatar.url;
+        if (uploadedAvatar?.url) {
+          avatar = uploadedAvatar.url;
+          console.log('[SIGNUP] Avatar uploaded successfully:', avatar);
+        } else {
+          console.warn('[SIGNUP] Avatar upload returned null, continuing without avatar');
+        }
+
+        // Clean up temp file
+        if (fs.existsSync(avatarLocalPath)) {
+          fs.unlinkSync(avatarLocalPath);
+        }
+      } catch (err) {
+        console.error('[SIGNUP ERROR] Avatar upload failed:', err.message);
+        
+        // Clean up temp file on error
+        if (fs.existsSync(avatarLocalPath)) {
+          fs.unlinkSync(avatarLocalPath);
+        }
+        
+        // Don't fail signup if avatar upload fails - continue without avatar
+        console.log('[SIGNUP] Continuing signup without avatar due to upload failure');
+      }
     }
-
-    if (fs.existsSync(avatarLocalPath)) {
-      fs.unlinkSync(avatarLocalPath);
-    }
-  } catch (err) {
-    if (fs.existsSync(avatarLocalPath)) {
-      fs.unlinkSync(avatarLocalPath);
-    }
-    console.error('[SIGNUP ERROR] Avatar upload failed:', err);
-    return res
-      .status(500)
-      .json(ApiError.internal('Failed to upload avatar').toJSON());
-  }
-}
 
 
     const user = await User.create({
