@@ -12,7 +12,17 @@ import { upload } from '../middleware/multer.js';
 import protect from "../middleware/auth.middleware.js"
 const router = express.Router();
 
-router.post('/signup', upload.single('avatar'), signup);
+// Conditional multer middleware - only process if Content-Type is multipart/form-data
+const conditionalUpload = (req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('multipart/form-data')) {
+    return upload.single('avatar')(req, res, next);
+  }
+  // Skip multer for JSON requests
+  next();
+};
+
+router.post('/signup', conditionalUpload, signup);
 router.post('/signin', signin);
 router.get('/me/:id', getMe);
 
