@@ -10,13 +10,17 @@ import { uploadOnCloudinary } from '../utils/cloudinary.js';
 import generateToken from '../utils/generateToken.js';
 export const signup = async (req, res) => {
   try {
+    console.log('[SIGNUP DEBUG] Request body:', req.body);
+    console.log('[SIGNUP DEBUG] Request file:', req.file);
+    
     const { name, contact, phone, email, password, role, franchise } = req.body;
     const userContact = contact || phone;
 
     if (!name || !userContact || !email || !password) {
+      console.log('[SIGNUP ERROR] Missing fields:', { name, userContact, email, password: !!password });
       return res
         .status(400)
-        .json(ApiError.badRequest('All fields are required (name, email, password, and contact/phone)'));
+        .json(ApiError.badRequest('All fields are required (name, email, password, and contact/phone)').toJSON());
     }
 
     const allowedRoles = ['user', 'agent', 'franchise', 'superadmin'];
@@ -26,11 +30,10 @@ export const signup = async (req, res) => {
       $or: [{ contact: userContact }, { email }],
     });
     if (existedUser) {
+      console.log('[SIGNUP ERROR] User already exists:', { email, contact: userContact });
       return res
         .status(409)
-        .json(
-          new ApiError('User with this email or contact already exists'),
-        );
+        .json(ApiError.badRequest('User with this email or contact already exists').toJSON());
     }
 
     let franchiseDoc = null;
@@ -39,7 +42,7 @@ export const signup = async (req, res) => {
       if (!franchiseDoc) {
         return res
           .status(404)
-          .json(ApiError.notFound('Franchise not found'));
+          .json(ApiError.notFound('Franchise not found').toJSON());
       }
     }
 
@@ -64,9 +67,10 @@ if (req.file?.path) {
     if (fs.existsSync(avatarLocalPath)) {
       fs.unlinkSync(avatarLocalPath);
     }
+    console.error('[SIGNUP ERROR] Avatar upload failed:', err);
     return res
       .status(500)
-      .json(ApiError.internal('Failed to upload avatar'));
+      .json(ApiError.internal('Failed to upload avatar').toJSON());
   }
 }
 
@@ -92,13 +96,10 @@ if (req.file?.path) {
     );
 
     if (!createdUser) {
+      console.error('[SIGNUP ERROR] User creation verification failed');
       return res
         .status(500)
-        .json(
-          ApiError.internal(
-            'Something went wrong while registering the user',
-          ),
-        );
+        .json(ApiError.internal('Something went wrong while registering the user').toJSON());
     }
 
     const token = generateToken(user);
@@ -110,6 +111,7 @@ if (req.file?.path) {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
+    console.log('[SIGNUP SUCCESS] User registered:', createdUser.email);
     return res
       .status(201)
       .json(
@@ -120,20 +122,19 @@ if (req.file?.path) {
         ),
       );
   } catch (err) {
-    console.error('Signup error:', err);
+    console.error('[SIGNUP ERROR] Exception:', err);
+    console.error('[SIGNUP ERROR] Stack:', err.stack);
 
     if (err.code === 11000) {
       const field = Object.keys(err.keyValue)[0];
       return res
         .status(409)
-        .json(new ApiError(409, `User with this ${field} already exists`));
+        .json(ApiError.badRequest(`User with this ${field} already exists`).toJSON());
     }
 
     return res
       .status(500)
-      .json(
-        ApiError.internal('Something went wrong while registering user'),
-      );
+      .json(ApiError.internal('Something went wrong while registering user').toJSON());
   }
 };
 export const signin = async (req, res) => {
