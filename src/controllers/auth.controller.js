@@ -214,12 +214,11 @@ export const signin = async (req, res) => {
       }
 
       // Check if franchise record itself is inactive
-      if (franchise && franchise.status === 'inactive' || franchise.status === 'rejected' || franchise.status === 'pending') {
+      if (franchise && ['inactive', 'rejected', 'pending'].includes(franchise.status)) {
         return res
           .status(403)
           .json(
             ApiError.forbidden(
-
               'Your franchise account is inactive. Please contact the administrator.',
             ),
           );
@@ -348,10 +347,26 @@ export const verifyOtp = async (req, res) => {
 
     user.otp = undefined;
     user.otpExpires = undefined;
+    // Mark user as active on email verification
+    if (user.status !== 'active') {
+      user.status = 'active';
+    }
     await user.save();
 
-    res.status(200).json(new ApiResponse(200, null, "OTP verified successfully"));
+    // Generate token so user is auto-logged in after OTP verification
+    const token = generateToken(user);
+    const safeUser = await User.findById(user._id).select('-password -refreshToken');
+
+    res.cookie('jwt', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'none',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    });
+
+    res.status(200).json(new ApiResponse(200, { user: safeUser, token }, "OTP verified successfully"));
   } catch (err) {
+    console.error('[VERIFY OTP ERROR]', err);
     res.status(500).json(ApiError.internal("Error verifying OTP"));
   }
 };
