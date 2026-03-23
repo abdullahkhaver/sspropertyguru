@@ -147,12 +147,14 @@ export const signup = async (req, res) => {
     });
 
     console.log('[SIGNUP SUCCESS] User registered:', createdUser.email);
+    // In dev/test mode include OTP in response so testing works without email
+    const devOtp = process.env.NODE_ENV !== 'production' ? otp : undefined;
     return res
       .status(201)
       .json(
         new ApiResponse(
           201,
-          { user: createdUser, token },
+          { user: createdUser, token, ...(devOtp && { devOtp }) },
           'User registered successfully. Please check your email for OTP verification.',
         ),
       );
