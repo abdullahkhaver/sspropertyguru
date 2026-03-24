@@ -9,7 +9,7 @@ export class ApiResponse {
     this.timestamp = new Date().toISOString();
   }
 
-  static success(data, message = "Request successful", statusCode = 200) {
+  static success(message = "Request successful", data = null, statusCode = 200) {
     return new ApiResponse(statusCode, data, message);
   }
 
