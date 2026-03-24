@@ -283,7 +283,7 @@ export const getProperties = async (req, res, next) => {
     const properties = await Property.find(filter)
       .populate('district', 'name')
       .populate('area', 'name')
-      .populate('agent', 'name email')
+      .populate('agent', 'name email contact avatar')
       .populate('franchise', 'name')
       .sort({ createdAt: -1 });
 
@@ -298,7 +298,7 @@ export const getPropertyById = async (req, res, next) => {
     const property = await Property.findById(req.params.id)
       .populate('district', 'name')
       .populate('area', 'name')
-      .populate('agent', 'name email')
+      .populate('agent', 'name email contact avatar')
       .populate('franchise', 'name');
 
     if (!property) {
@@ -340,7 +340,7 @@ export const getPropertiesByFranchiseOrAgent = async (req, res) => {
     }
 
     const properties = await Property.find(query)
-      .populate('agent', 'fullName email')
+      .populate('agent', 'name email contact avatar')
       .populate('franchise', 'name email')
       .sort({ createdAt: -1 });
 
