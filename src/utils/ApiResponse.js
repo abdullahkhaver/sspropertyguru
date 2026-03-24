@@ -6,9 +6,13 @@ export class ApiResponse {
     this.success = statusCode >= 200 && statusCode < 300;
     this.message = message;
     this.data = data;
+    // Alias fields for backward compatibility with any frontend that reads differently
+    this.results = data;
     this.timestamp = new Date().toISOString();
   }
 
+  // Called as: ApiResponse.success('message string', actualData)
+  // All controllers use this pattern
   static success(message = "Request successful", data = null, statusCode = 200) {
     return new ApiResponse(statusCode, data, message);
   }
