@@ -6,7 +6,7 @@ const propertySchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ['Property', 'Plot', 'House', 'Agricultural Land','Property Land'],
+      enum: ['Property', 'Plot', 'House', 'Agricultural Land', 'Property Land'],
       required: [true, 'Category is required'],
     },
 
@@ -54,6 +54,8 @@ const propertySchema = new mongoose.Schema(
 
     agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     franchise: { type: mongoose.Schema.Types.ObjectId, ref: 'Franchise' },
+    isLive: { type: Boolean, default: false },
+    paymentId: { type: String, default: null },
   },
   { timestamps: true },
 );

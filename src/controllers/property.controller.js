@@ -83,6 +83,7 @@ export const createProperty = async (req, res) => {
       images,
       video: videoUrl,
       features,
+      isLive: !!data.paymentId || data.isLive === 'true' || data.isLive === true,
     });
 
     const saved = await property.save();
@@ -96,9 +97,8 @@ export const createProperty = async (req, res) => {
       if (otherAgents.length > 0) {
         const notifications = otherAgents.map((agent) => ({
           recipient: agent._id,
-          message: `A new property "${
-            data.title || 'Untitled'
-          }" has been added.`,
+          message: `A new property "${data.title || 'Untitled'
+            }" has been added.`,
           type: 'property',
         }));
 
@@ -264,7 +264,7 @@ export const updateProperty = async (req, res, next) => {
 
 export const getProperties = async (req, res, next) => {
   try {
-    const { search, category, sellingType, minPrice, maxPrice, status } =
+    const { search, category, sellingType, minPrice, maxPrice, status, district, area } =
       req.query;
 
     let filter = {};
@@ -273,6 +273,8 @@ export const getProperties = async (req, res, next) => {
     if (category) filter.category = category;
     if (sellingType) filter.sellingType = sellingType;
     if (status) filter.status = status;
+    if (district) filter.district = district;
+    if (area) filter.area = area;
 
     if (minPrice || maxPrice) {
       filter.price = {};
