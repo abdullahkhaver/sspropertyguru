@@ -4,6 +4,7 @@ import Franchise from '../models/franchise.model.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { sendEmail } from '../utils/sendEmail.js';
+import { sendOTPViaSMS, isTwilioConfigured } from '../utils/sendSMS.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
@@ -16,24 +17,29 @@ export const signup = async (req, res) => {
     const { name, contact, phone, email, password, role, franchise } = req.body;
     const userContact = contact || phone;
 
-    if (!name || !userContact || !email || !password) {
-      console.log('[SIGNUP ERROR] Missing fields:', { name, userContact, email, password: !!password });
+    if (!name || !userContact) {
+      console.log('[SIGNUP ERROR] Missing fields:', { name, userContact });
       return res
         .status(400)
-        .json(ApiError.badRequest('All fields are required (name, email, password, and contact/phone)').toJSON());
+        .json(ApiError.badRequest('Name and contact/phone are required').toJSON());
     }
 
-    const allowedRoles = ['user', 'agent', 'franchise', 'superadmin'];
-    const finalRole = allowedRoles.includes(role) ? role : 'user';
+    // Always assign 'user' role for mobile app signups (agents managed via admin)
+    const finalRole = 'user';
+    // Generate a random password if not provided (OTP-based auth)
+    const finalPassword = password || Math.random().toString(36).slice(-10) + 'Aa1!';
 
     const existedUser = await User.findOne({
-      $or: [{ contact: userContact }, { email }],
+      $or: [
+        { contact: userContact },
+        ...(email ? [{ email }] : []),
+      ],
     });
     if (existedUser) {
       console.log('[SIGNUP ERROR] User already exists:', { email, contact: userContact });
       return res
         .status(409)
-        .json(ApiError.badRequest('User with this email or contact already exists').toJSON());
+        .json(ApiError.badRequest('User with this phone number already exists').toJSON());
     }
 
     let franchiseDoc = null;
@@ -91,9 +97,10 @@ export const signup = async (req, res) => {
     const user = await User.create({
       name,
       contact: userContact,
-      email,
-      password,
+      email: email || `${userContact}@noemail.local`,
+      password: finalPassword,
       role: finalRole,
+      status: 'active', // auto-activate for OTP-based signup
       avatar,
       franchise: franchiseDoc ? franchiseDoc._id : null,
     });
@@ -115,7 +122,7 @@ export const signup = async (req, res) => {
         .json(ApiError.internal('Something went wrong while registering the user').toJSON());
     }
 
-    // Generate and send OTP for email verification
+    // Generate and send OTP for phone verification via SMS
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
     
@@ -123,19 +130,34 @@ export const signup = async (req, res) => {
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
 
-    // Send OTP email (async - don't block signup)
-    sendEmail(
-      user.email,
-      'Verify Your Email - SS Property Guru',
-      `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
-    )
-      .then(() => {
-        console.log('[SIGNUP SUCCESS] OTP email sent to:', user.email);
-      })
-      .catch((emailError) => {
-        console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
-        console.log('[SIGNUP] OTP for manual testing:', otp);
-      });
+    // Send OTP via Twilio SMS (primary) or Email (fallback)
+    const useSMS = isTwilioConfigured();
+    
+    if (useSMS) {
+      // Send via Twilio SMS
+      sendOTPViaSMS(user.contact, otp)
+        .then(() => {
+          console.log('[SIGNUP SUCCESS] OTP SMS sent to:', user.contact);
+        })
+        .catch((smsError) => {
+          console.error('[SIGNUP WARNING] Failed to send OTP SMS:', smsError.message);
+          console.log('[SIGNUP] OTP for manual testing:', otp);
+        });
+    } else {
+      // Fallback to email
+      sendEmail(
+        user.email,
+        'Verify Your Email - SS Property Guru',
+        `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
+      )
+        .then(() => {
+          console.log('[SIGNUP SUCCESS] OTP email sent to:', user.email);
+        })
+        .catch((emailError) => {
+          console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
+          console.log('[SIGNUP] OTP for manual testing:', otp);
+        });
+    }
 
     const token = generateToken(user);
 
@@ -308,22 +330,34 @@ export const getMe = async (req, res) => {
  */
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json(ApiError.badRequest("Email required"));
+    const { email, contact, phone } = req.body;
+    const identifier = email || contact || phone;
+    if (!identifier) return res.status(400).json(ApiError.badRequest("Email or phone required"));
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).json(ApiError.notFound("No user with this email"));
+    const user = await User.findOne({
+      $or: [{ email: identifier }, { contact: identifier }],
+    });
+    if (!user) return res.status(404).json(ApiError.notFound("No user found with this email/phone"));
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
     user.otp = hashedOtp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000; // valid for 10 min
+    user.otpExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    await sendEmail(user.email, "Password Reset OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+    // Send via SMS if Twilio configured, else email
+    const useSMS = isTwilioConfigured();
+    if (useSMS) {
+      sendOTPViaSMS(user.contact, otp).catch(err =>
+        console.error('[FORGOT PWD] SMS failed:', err.message)
+      );
+    } else if (user.email && !user.email.includes('@noemail.local')) {
+      await sendEmail(user.email, "Login OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+    }
 
-    res.status(200).json(new ApiResponse(200, null, "OTP sent to your email"));
+    const devOtp = process.env.NODE_ENV !== 'production' ? otp : undefined;
+    res.status(200).json(new ApiResponse(200, { ...(devOtp && { devOtp }) }, "OTP sent successfully"));
   } catch (err) {
     console.error(err);
     res.status(500).json(ApiError.internal("Error sending OTP"));
