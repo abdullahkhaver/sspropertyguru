@@ -373,7 +373,10 @@ export const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json(ApiError.badRequest("Email and OTP required"));
 
-    const user = await User.findOne({ email }).select("+otp +otpExpires");
+    // Support both email and phone number lookup
+    const user = await User.findOne({
+      $or: [{ email }, { contact: email }],
+    }).select("+otp +otpExpires");
     if (!user) return res.status(404).json(ApiError.notFound("User not found"));
 
     const hashedOtp = crypto.createHash("sha256").update(otp).digest("hex");
