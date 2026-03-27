@@ -1,6 +1,7 @@
 import Property from '../models/property.model.js';
 import Notification from '../models/notification.model.js';
 import User from '../models/user.model.js';
+import { sendMulticastNotification } from '../utils/firebase.js';
 
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
@@ -104,6 +105,17 @@ export const createProperty = async (req, res) => {
 
         await Notification.insertMany(notifications);
         console.log(`Notifications created for ${otherAgents.length} agents.`);
+
+        // Send Real Push Notifications (Status Bar)
+        const tokens = otherAgents.map(a => a.fcmToken).filter(t => t);
+        if (tokens.length > 0) {
+          sendMulticastNotification(
+            tokens,
+            'New Property Listed! 🏠',
+            `A new property "${data.title || 'Untitled'}" is now live in SS Property Guru.`,
+            { type: 'new_property', propertyId: saved._id.toString() }
+          ).catch(err => console.error('Push Multicast failed:', err.message));
+        }
       } else {
         console.log('No other agents found to notify.');
       }

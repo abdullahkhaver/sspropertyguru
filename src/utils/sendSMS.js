@@ -38,7 +38,16 @@ export const sendOTPViaSMS = async (phone, otp) => {
 
     let formattedPhone = phone.trim().replace(/\s/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = formattedPhone.substring(1);
-    if (!formattedPhone.startsWith('+')) formattedPhone = `+91${formattedPhone}`;
+
+    // Improve formatting: If it's a 10-digit number without a plus, assume it's Indian (+91)
+    if (!formattedPhone.startsWith('+')) {
+        if (formattedPhone.length === 10) {
+            formattedPhone = `+91${formattedPhone}`;
+        } else {
+            // Otherwise, just prepend a plus if it's missing (helps with international numbers)
+            formattedPhone = `+${formattedPhone}`;
+        }
+    }
 
     console.log(`[SMS] Sending OTP to: ${formattedPhone}`);
 

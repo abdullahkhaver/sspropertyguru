@@ -1,5 +1,6 @@
 // src/app.js
 import express from 'express';
+import './utils/firebase.js';
 import morgan from 'morgan';
 import cors from 'cors';
 import helmet from 'helmet';

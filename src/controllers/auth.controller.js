@@ -13,7 +13,7 @@ export const signup = async (req, res) => {
   try {
     console.log('[SIGNUP DEBUG] Request body:', req.body);
     console.log('[SIGNUP DEBUG] Request file:', req.file);
-    
+
     const { name, contact, phone, email, password, role, franchise } = req.body;
     const userContact = contact || phone;
 
@@ -60,13 +60,13 @@ export const signup = async (req, res) => {
 
       try {
         console.log('[SIGNUP] Starting avatar upload to Cloudinary...');
-        
+
         // Add timeout wrapper for Cloudinary upload
         const uploadPromise = uploadOnCloudinary(avatarLocalPath);
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Cloudinary upload timeout')), 30000)
         );
-        
+
         const uploadedAvatar = await Promise.race([uploadPromise, timeoutPromise]);
 
         if (uploadedAvatar?.url) {
@@ -82,12 +82,12 @@ export const signup = async (req, res) => {
         }
       } catch (err) {
         console.error('[SIGNUP ERROR] Avatar upload failed:', err.message);
-        
+
         // Clean up temp file on error
         if (fs.existsSync(avatarLocalPath)) {
           fs.unlinkSync(avatarLocalPath);
         }
-        
+
         // Don't fail signup if avatar upload fails - continue without avatar
         console.log('[SIGNUP] Continuing signup without avatar due to upload failure');
       }
@@ -125,14 +125,14 @@ export const signup = async (req, res) => {
     // Generate and send OTP for phone verification via SMS
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
-    
+
     user.otp = hashedOtp;
     user.otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     await user.save();
 
     // Send OTP via Twilio SMS (primary) or Email (fallback)
     const useSMS = isTwilioConfigured();
-    
+
     if (useSMS) {
       // Send via Twilio SMS
       sendOTPViaSMS(user.contact, otp)
@@ -220,7 +220,7 @@ export const signin = async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     console.log('[SIGNIN DEBUG] Password match:', isMatch);
-    
+
     if (!isMatch) {
       return res.status(401).json(ApiError.unauthorized('Invalid credentials').toJSON());
     }
@@ -249,24 +249,24 @@ export const signin = async (req, res) => {
       }
     }
 
-if (user.role === 'agent') {
-  const franchise = user.franchise
-    ? await Franchise.findById(user.franchise)
-    : null;
+    if (user.role === 'agent') {
+      const franchise = user.franchise
+        ? await Franchise.findById(user.franchise)
+        : null;
 
-  if (
-    franchise &&
-    ['inactive', 'rejected', 'pending'].includes(franchise.status)
-  ) {
-    return res
-      .status(403)
-      .json(
-        ApiError.forbidden(
-          'Your franchise is inactive. Please contact the administrator.',
-        ),
-      );
-  }
-}
+      if (
+        franchise &&
+        ['inactive', 'rejected', 'pending'].includes(franchise.status)
+      ) {
+        return res
+          .status(403)
+          .json(
+            ApiError.forbidden(
+              'Your franchise is inactive. Please contact the administrator.',
+            ),
+          );
+      }
+    }
 
 
     const token = generateToken(user);
@@ -346,14 +346,21 @@ export const forgotPassword = async (req, res) => {
     user.otpExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
 
-    // Send via SMS if Twilio configured, else email
-    const useSMS = isTwilioConfigured();
+    // Intelligent Delivery: 
+    // 1. If phone/contact was provided in request AND Twilio is setup -> Send SMS
+    // 2. If email was provided in request OR Twilio is NOT setup -> Send Email
+    const useSMS = isTwilioConfigured() && (contact || phone);
+    const hasEmail = user.email && !user.email.includes('@noemail.local');
+
     if (useSMS) {
       sendOTPViaSMS(user.contact, otp).catch(err =>
         console.error('[FORGOT PWD] SMS failed:', err.message)
       );
-    } else if (user.email && !user.email.includes('@noemail.local')) {
+    } else if (hasEmail) {
       await sendEmail(user.email, "Login OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+    } else if (!useSMS && !hasEmail) {
+      // Emergency fallback if no email and no sms config
+      console.log('[OTP] No delivery channel available. OTP:', otp);
     }
 
     const devOtp = process.env.NODE_ENV !== 'production' ? otp : undefined;

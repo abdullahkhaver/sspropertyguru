@@ -89,3 +89,26 @@ export const editUser = async (req, res) => {
       .json(new ApiError(500, "Internal Server Error"));
   }
 };
+
+export const updateFCMToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    if (!fcmToken) {
+      return res.status(400).json(new ApiError(400, "FCM Token is required"));
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { fcmToken },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json(new ApiError(404, "User not found"));
+    }
+
+    res.status(200).json(new ApiResponse(200, null, "FCM Token updated successfully"));
+  } catch (error) {
+    res.status(500).json(ApiError.internal(error.message));
+  }
+};
