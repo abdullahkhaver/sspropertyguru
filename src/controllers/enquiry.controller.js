@@ -7,7 +7,7 @@ export const createEnquiry = async (req, res) => {
   try {
     const { name, contact, message, email, city, user } = req.body;
 
-    if (!name || !contact || !email || !city) {
+    if (!name || !contact || !city) {
       return res
         .status(400)
         .json(new ApiError(400, 'All required fields must be filled'));
@@ -18,7 +18,7 @@ export const createEnquiry = async (req, res) => {
       name,
       contact,
       message,
-      email,
+      email: email || `${contact}@noemail.local`,
       city,
     });
 
