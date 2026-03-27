@@ -89,38 +89,37 @@ export const createProperty = async (req, res) => {
 
     const saved = await property.save();
     console.log('Property saved:', saved._id);
-    try {
-      const otherAgents = await User.find({
-        _id: { $ne: agentId },
-        role: 'agent',
-      });
 
-      if (otherAgents.length > 0) {
-        const notifications = otherAgents.map((agent) => ({
-          recipient: agent._id,
-          message: `A new property "${data.title || 'Untitled'
-            }" has been added.`,
+    // Send push notification to ALL users with FCM tokens
+    try {
+      const allUsers = await User.find({
+        fcmToken: { $exists: true, $ne: '' },
+        _id: { $ne: agentId },
+      }).select('fcmToken _id');
+
+      if (allUsers.length > 0) {
+        // Create in-app notifications
+        const notifications = allUsers.map((u) => ({
+          recipient: u._id,
+          message: `New property "${data.title || 'Untitled'}" has been listed!`,
           type: 'property',
         }));
-
         await Notification.insertMany(notifications);
-        console.log(`Notifications created for ${otherAgents.length} agents.`);
 
-        // Send Real Push Notifications (Status Bar)
-        const tokens = otherAgents.map(a => a.fcmToken).filter(t => t);
+        // Send real push notifications
+        const tokens = allUsers.map(u => u.fcmToken).filter(t => t && t.length > 10);
         if (tokens.length > 0) {
           sendMulticastNotification(
             tokens,
-            'New Property Listed! 🏠',
-            `A new property "${data.title || 'Untitled'}" is now live in SS Property Guru.`,
+            '🏠 New Property Listed!',
+            `"${data.title || 'New Property'}" is now available in SS Property Guru.`,
             { type: 'new_property', propertyId: saved._id.toString() }
-          ).catch(err => console.error('Push Multicast failed:', err.message));
+          ).catch(err => console.error('Push notification failed:', err.message));
         }
-      } else {
-        console.log('No other agents found to notify.');
+        console.log(`Notified ${allUsers.length} users.`);
       }
     } catch (notifErr) {
-      console.error('Notification creation failed:', notifErr.message);
+      console.error('Notification error:', notifErr.message);
     }
 
     return res.status(201).json({
