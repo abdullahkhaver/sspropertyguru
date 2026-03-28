@@ -132,31 +132,40 @@ export const signup = async (req, res) => {
 
     // Send OTP via Twilio SMS (primary) or Email (fallback)
     const useSMS = isTwilioConfigured();
+    let otpSent = false;
 
     if (useSMS) {
-      // Send via Twilio SMS
-      sendOTPViaSMS(user.contact, otp)
-        .then(() => {
-          console.log('[SIGNUP SUCCESS] OTP SMS sent to:', user.contact);
-        })
-        .catch((smsError) => {
-          console.error('[SIGNUP WARNING] Failed to send OTP SMS:', smsError.message);
-          console.log('[SIGNUP] OTP for manual testing:', otp);
-        });
+      // Send via Twilio SMS with timeout
+      try {
+        const smsPromise = sendOTPViaSMS(user.contact, otp);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('SMS send timeout')), 15000)
+        );
+        await Promise.race([smsPromise, timeoutPromise]);
+        console.log('[SIGNUP SUCCESS] OTP SMS sent to:', user.contact);
+        otpSent = true;
+      } catch (smsError) {
+        console.error('[SIGNUP WARNING] Failed to send OTP SMS:', smsError.message);
+        console.log('[SIGNUP] OTP for manual testing:', otp);
+      }
     } else {
-      // Fallback to email
-      sendEmail(
-        user.email,
-        'Verify Your Email - SS Property Guru',
-        `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
-      )
-        .then(() => {
-          console.log('[SIGNUP SUCCESS] OTP email sent to:', user.email);
-        })
-        .catch((emailError) => {
-          console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
-          console.log('[SIGNUP] OTP for manual testing:', otp);
-        });
+      // Fallback to email with timeout
+      try {
+        const emailPromise = sendEmail(
+          user.email,
+          'Verify Your Email - SS Property Guru',
+          `Welcome to SS Property Guru!\n\nYour verification OTP is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't create this account, please ignore this email.`
+        );
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Email send timeout')), 15000)
+        );
+        await Promise.race([emailPromise, timeoutPromise]);
+        console.log('[SIGNUP SUCCESS] OTP email sent to:', user.email);
+        otpSent = true;
+      } catch (emailError) {
+        console.error('[SIGNUP WARNING] Failed to send OTP email:', emailError.message);
+        console.log('[SIGNUP] OTP for manual testing:', otp);
+      }
     }
 
     const token = generateToken(user);
@@ -353,11 +362,27 @@ export const forgotPassword = async (req, res) => {
     const hasEmail = user.email && !user.email.includes('@noemail.local');
 
     if (useSMS) {
-      sendOTPViaSMS(user.contact, otp).catch(err =>
-        console.error('[FORGOT PWD] SMS failed:', err.message)
-      );
+      try {
+        const smsPromise = sendOTPViaSMS(user.contact, otp);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('SMS send timeout')), 15000)
+        );
+        await Promise.race([smsPromise, timeoutPromise]);
+        console.log('[FORGOT PWD] OTP SMS sent to:', user.contact);
+      } catch (err) {
+        console.error('[FORGOT PWD] SMS failed:', err.message);
+      }
     } else if (hasEmail) {
-      await sendEmail(user.email, "Login OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+      try {
+        const emailPromise = sendEmail(user.email, "Login OTP", `Your OTP code is ${otp}. It will expire in 10 minutes.`);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Email send timeout')), 15000)
+        );
+        await Promise.race([emailPromise, timeoutPromise]);
+        console.log('[FORGOT PWD] OTP email sent to:', user.email);
+      } catch (err) {
+        console.error('[FORGOT PWD] Email failed:', err.message);
+      }
     } else if (!useSMS && !hasEmail) {
       // Emergency fallback if no email and no sms config
       console.log('[OTP] No delivery channel available. OTP:', otp);
