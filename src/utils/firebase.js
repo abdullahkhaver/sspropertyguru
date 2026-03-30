@@ -1,71 +1,99 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const serviceAccountPath = join(__dirname, '../../firebase-admin-key.json');
+const initFirebase = () => {
+    if (admin.apps.length > 0) return;
 
-try {
-    const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+    // Option 1: FIREBASE_SERVICE_ACCOUNT env var (Railway / production)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+            console.log('✅ Firebase Admin initialized from env var');
+            return;
+        } catch (err) {
+            console.error('❌ Firebase init from env var failed:', err.message);
+        }
+    }
 
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-    });
+    // Option 2: Local file (development)
+    const keyPath = join(__dirname, '../../firebase-admin-key.json');
+    if (existsSync(keyPath)) {
+        try {
+            const serviceAccount = JSON.parse(readFileSync(keyPath, 'utf8'));
+            admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+            console.log('✅ Firebase Admin initialized from local file');
+            return;
+        } catch (err) {
+            console.error('❌ Firebase init from local file failed:', err.message);
+        }
+    }
 
-    console.log('✅ Firebase Admin initialized');
-} catch (error) {
-    console.error('❌ Firebase Admin initialization error:', error.message);
-    console.warn('Push notifications will not work without a valid firebase-admin-key.json');
-}
+    console.warn('⚠️  Firebase Admin NOT initialized. Push notifications disabled.');
+    console.warn('   → Set FIREBASE_SERVICE_ACCOUNT env var on Railway to enable.');
+};
+
+initFirebase();
 
 /**
- * Send Push Notification to a specific token
+ * Send push notification to a single FCM token
  */
 export const sendPushNotification = async (token, title, body, data = {}) => {
     if (!admin.apps.length) return null;
 
-    const message = {
-        notification: { title, body },
-        data: {
-            ...data,
-            click_action: 'FLUTTER_NOTIFICATION_CLICK', // Common for RN too
-        },
-        token: token,
-    };
-
     try {
-        const response = await admin.messaging().send(message);
-        console.log('✅ Successfully sent message:', response);
+        const response = await admin.messaging().send({
+            notification: { title, body },
+            data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+            token,
+            android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+            apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+        });
+        console.log('✅ Push sent:', response);
         return response;
-    } catch (error) {
-        console.error('❌ Error sending message:', error);
+    } catch (err) {
+        console.error('❌ Push failed:', err.message);
         return null;
     }
 };
 
 /**
- * Send Push Notification to multiple tokens
+ * Send push notification to multiple FCM tokens
  */
 export const sendMulticastNotification = async (tokens, title, body, data = {}) => {
-    if (!admin.apps.length || !tokens || tokens.length === 0) return null;
+    if (!admin.apps.length) {
+        console.warn('[FCM] Firebase not initialized, skipping multicast');
+        return null;
+    }
 
-    const message = {
-        notification: { title, body },
-        data,
-        tokens: tokens.filter(t => t && t !== 'dummy_token'),
-    };
-
-    if (message.tokens.length === 0) return null;
+    const validTokens = tokens.filter(t => t && t.length > 10);
+    if (validTokens.length === 0) return null;
 
     try {
-        const response = await admin.messaging().sendEachForMulticast(message);
-        console.log(`${response.successCount} messages were sent successfully`);
+        const response = await admin.messaging().sendEachForMulticast({
+            notification: { title, body },
+            data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+            tokens: validTokens,
+            android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+            apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+        });
+
+        console.log(`✅ Multicast: ${response.successCount}/${validTokens.length} sent`);
+
+        if (response.failureCount > 0) {
+            response.responses.forEach((r, i) => {
+                if (!r.success) console.error(`  Token[${i}] failed: ${r.error?.message}`);
+            });
+        }
+
         return response;
-    } catch (error) {
-        console.error('❌ Error sending multicast message:', error);
+    } catch (err) {
+        console.error('❌ Multicast failed:', err.message);
         return null;
     }
 };

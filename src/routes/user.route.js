@@ -5,6 +5,7 @@ import {
   getUserById,
   editUser,
   updateFCMToken,
+  removeFCMToken,
 } from '../controllers/user.controller.js';
 import protect from '../middleware/auth.middleware.js';
 
@@ -15,5 +16,6 @@ router.get("/:id", getUserById);
 router.put("/:id", editUser);
 router.delete("/:id", deleteUser);
 router.post("/fcm-token", protect, updateFCMToken);
+router.delete("/fcm-token", protect, removeFCMToken);
 
 export default router;

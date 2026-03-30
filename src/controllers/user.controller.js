@@ -112,3 +112,12 @@ export const updateFCMToken = async (req, res) => {
     res.status(500).json(ApiError.internal(error.message));
   }
 };
+
+export const removeFCMToken = async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, { fcmToken: '' });
+    res.status(200).json(new ApiResponse(200, null, "FCM Token removed successfully"));
+  } catch (error) {
+    res.status(500).json(ApiError.internal(error.message));
+  }
+};
