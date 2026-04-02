@@ -24,6 +24,7 @@ import franchiseDashboardRoutes from './routes/franchiseDashboard.route.js';
 import requirementRoutes from "./routes/requirement.route.js"
 import notificationRoutes from './routes/notification.route.js';
 import streamRoutes from './routes/stream.route.js';
+import paymentRoutes from './routes/payment.route.js';
 
 const app = express();
 app.use((req, res, next) => {
@@ -86,6 +87,7 @@ app.use('/api/v1/franchisedashboard', franchiseDashboardRoutes);
 app.use('/api/v1/requirements', requirementRoutes)
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/stream', streamRoutes);
+app.use('/api/v1/payments', paymentRoutes);
 // 404 Handler
 app.use(notFoundHandler);
 // Error Handler
