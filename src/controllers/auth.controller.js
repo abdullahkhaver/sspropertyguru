@@ -14,7 +14,7 @@ export const signup = async (req, res) => {
     console.log('[SIGNUP DEBUG] Request body:', req.body);
     console.log('[SIGNUP DEBUG] Request file:', req.file);
 
-    const { name, contact, phone, email, password, role, franchise } = req.body;
+    const { name, contact, phone, email, password, role, franchise, latitude, longitude, address } = req.body;
     const userContact = contact || phone;
 
     if (!name || !userContact) {
@@ -103,6 +103,9 @@ export const signup = async (req, res) => {
       status: 'active', // auto-activate for OTP-based signup
       avatar,
       franchise: franchiseDoc ? franchiseDoc._id : null,
+      latitude: latitude || 0,
+      longitude: longitude || 0,
+      address: address || '',
     });
 
     if (finalRole === 'agent' && franchiseDoc) {
