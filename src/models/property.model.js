@@ -6,57 +6,55 @@ const propertySchema = new mongoose.Schema(
 
     category: {
       type: String,
-      category: {
-        type: String,
-        enum: ['Agricultural Land', 'Plot', 'Farm House', 'Warehouse', 'Property Land', 'Industrial', 'Residential'],
-        required: [true, 'Category is required'],
-      },
-
-      features: [String],
-
-      images: [
-        {
-          url: { type: String, required: true },
-          public_id: { type: String },
-        },
-      ], // up to 4 Cloudinary URLs
-      video: { type: String },
-
-      sellingType: {
-        type: String,
-        enum: ['Sale', 'Rent', 'Lease', 'Sell'],
-        required: [true, 'Selling type is required'],
-      },
-
-      price: { type: Number, required: [true, 'Price is required'], index: true },
-
-      areaSize: Number,
-
-      district: {
-        type: String,
-        index: true,
-      },
-
-      area: {
-        type: String,
-        index: true,
-      },
-
-      address: String,
-
-      status: {
-        type: String,
-        enum: ['Available', 'Sold', 'Rented', 'Pending'],
-        default: 'Available',
-      },
-
-      contactNumber: String,
-
-      agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      franchise: { type: mongoose.Schema.Types.ObjectId, ref: 'Franchise' },
-      isLive: { type: Boolean, default: false },
-      paymentId: { type: String, default: null },
+      enum: ['Agricultural Land', 'Plot', 'Farm House', 'Warehouse', 'Property Land', 'Industrial', 'Residential'],
+      required: [true, 'Category is required'],
     },
+
+    features: [String],
+
+    images: [
+      {
+        url: { type: String, required: true },
+        public_id: { type: String },
+      },
+    ], // up to 4 Cloudinary URLs
+    video: { type: String },
+
+    sellingType: {
+      type: String,
+      enum: ['Sale', 'Rent', 'Lease', 'Sell'],
+      required: [true, 'Selling type is required'],
+    },
+
+    price: { type: Number, required: [true, 'Price is required'], index: true },
+
+    areaSize: Number,
+
+    district: {
+      type: String,
+      index: true,
+    },
+
+    area: {
+      type: String,
+      index: true,
+    },
+
+    address: String,
+
+    status: {
+      type: String,
+      enum: ['Available', 'Sold', 'Rented', 'Pending'],
+      default: 'Available',
+    },
+
+    contactNumber: String,
+
+    agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    franchise: { type: mongoose.Schema.Types.ObjectId, ref: 'Franchise' },
+    isLive: { type: Boolean, default: false },
+    paymentId: { type: String, default: null },
+  },
   { timestamps: true },
 );
 
