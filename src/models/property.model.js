@@ -6,7 +6,7 @@ const propertySchema = new mongoose.Schema(
 
     category: {
       type: String,
-      enum: ['Property', 'Plot', 'House', 'Agricultural Land', 'Property Land'],
+      enum: ['Property', 'Plot', 'House', 'Flat', 'Agricultural Land', 'Commercial Space', 'Property Land'],
       required: [true, 'Category is required'],
     },
 
@@ -22,7 +22,7 @@ const propertySchema = new mongoose.Schema(
 
     sellingType: {
       type: String,
-      enum: ['Sale', 'Rent', 'Lease'],
+      enum: ['Sale', 'Rent', 'Lease', 'Sell'],
       required: [true, 'Selling type is required'],
     },
 
@@ -31,14 +31,12 @@ const propertySchema = new mongoose.Schema(
     areaSize: Number,
 
     district: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'District',
+      type: String,
       index: true,
     },
 
     area: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Area',
+      type: String,
       index: true,
     },
 
