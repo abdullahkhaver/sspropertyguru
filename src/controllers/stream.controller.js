@@ -4,15 +4,28 @@ import Stream from "../models/stream.model.js";
 export const setStream = async (req, res) => {
   try {
     const { youtubeUrl, isActive } = req.body;
+    
+    // Default isActive to true if not provided
+    const activeStatus = isActive !== undefined ? isActive : true;
+    
+    console.log('[setStream] Received:', { youtubeUrl, isActive, activeStatus });
+    
     let stream = await Stream.findOne();
-    if (!stream) stream = new Stream({ youtubeUrl, isActive });
-    else {
+    if (!stream) {
+      stream = new Stream({ youtubeUrl, isActive: activeStatus });
+      console.log('[setStream] Creating new stream');
+    } else {
       stream.youtubeUrl = youtubeUrl;
-      stream.isActive = isActive;
+      stream.isActive = activeStatus;
+      console.log('[setStream] Updating existing stream');
     }
+    
     await stream.save();
-    res.status(200).json({ success: true, stream });
+    console.log('[setStream] Saved stream:', stream);
+    
+    res.status(200).json({ success: true, data: stream });
   } catch (err) {
+    console.error('[setStream] Error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
