@@ -21,7 +21,13 @@ export const setStream = async (req, res) => {
 export const getStream = async (req, res) => {
   try {
     const stream = await Stream.findOne();
-    res.status(200).json(stream || {});
+    if (!stream) {
+      return res.status(200).json({ 
+        success: true, 
+        data: { youtubeUrl: null, isActive: false } 
+      });
+    }
+    res.status(200).json({ success: true, data: stream });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
