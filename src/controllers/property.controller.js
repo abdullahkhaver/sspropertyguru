@@ -77,10 +77,14 @@ export const createProperty = async (req, res) => {
     const agentId = req.user?._id || data.agent || null;
     const franchiseId = data.franchise || null;
 
+    // Map frontend 'city' field to backend 'district' field
+    const district = data.district || data.city || null;
+
     const property = new Property({
       ...data,
       agent: agentId,
       franchise: franchiseId,
+      district: district,
       images,
       video: videoUrl,
       features,
