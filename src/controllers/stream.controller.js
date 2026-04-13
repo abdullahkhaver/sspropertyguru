@@ -1,4 +1,7 @@
 import Stream from "../models/stream.model.js";
+import Notification from '../models/notification.model.js';
+import User from '../models/user.model.js';
+import { sendMulticastNotification } from '../utils/firebase.js';
 
 // Add or update stream
 export const setStream = async (req, res) => {
@@ -11,6 +14,8 @@ export const setStream = async (req, res) => {
     console.log('[setStream] Received:', { youtubeUrl, isActive, activeStatus });
     
     let stream = await Stream.findOne();
+    const wasInactive = !stream || !stream.isActive;
+    
     if (!stream) {
       stream = new Stream({ youtubeUrl, isActive: activeStatus });
       console.log('[setStream] Creating new stream');
@@ -22,6 +27,39 @@ export const setStream = async (req, res) => {
     
     await stream.save();
     console.log('[setStream] Saved stream:', stream);
+    
+    // Send push notification to ALL users when stream becomes active
+    if (activeStatus && wasInactive) {
+      try {
+        const allUsers = await User.find({
+          fcmToken: { $exists: true, $ne: '' }
+        }).select('fcmToken _id');
+
+        if (allUsers.length > 0) {
+          // Create in-app notifications
+          const notifications = allUsers.map((u) => ({
+            recipient: u._id,
+            message: '🔴 Live Property Tour is now streaming! Watch now.',
+            type: 'live_stream',
+          }));
+          await Notification.insertMany(notifications);
+
+          // Send real push notifications
+          const tokens = allUsers.map(u => u.fcmToken).filter(t => t && t.length > 10);
+          if (tokens.length > 0) {
+            sendMulticastNotification(
+              tokens,
+              '🔴 Live Property Tour!',
+              'Property tour is streaming live now. Join and explore properties!',
+              { type: 'live_stream', streamUrl: youtubeUrl }
+            ).catch(err => console.error('Push notification failed:', err.message));
+          }
+          console.log(`[setStream] Notified ${allUsers.length} users about live stream.`);
+        }
+      } catch (notifErr) {
+        console.error('[setStream] Notification error:', notifErr.message);
+      }
+    }
     
     res.status(200).json({ success: true, data: stream });
   } catch (err) {
