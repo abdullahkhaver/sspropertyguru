@@ -101,11 +101,11 @@ export const createProperty = async (req, res) => {
         _id: { $ne: agentId },
       }).select('fcmToken _id');
 
-      if (allUsers.length > 0) {
+        if (allUsers.length > 0) {
         // Create in-app notifications
         const notifications = allUsers.map((u) => ({
           recipient: u._id,
-          message: `New property "${data.title || 'Untitled'}" has been listed!`,
+          message: `New ${data.category || 'Property'} added: "${data.title || 'Untitled'}"`,
           type: 'property',
         }));
         await Notification.insertMany(notifications);
@@ -115,7 +115,7 @@ export const createProperty = async (req, res) => {
         if (tokens.length > 0) {
           sendMulticastNotification(
             tokens,
-            '🏠 New Property Listed!',
+            `🏠 New ${data.category || 'Property'} Listed!`,
             `"${data.title || 'New Property'}" is now available in SS Property Guru.`,
             { type: 'new_property', propertyId: saved._id.toString() }
           ).catch(err => console.error('Push notification failed:', err.message));
