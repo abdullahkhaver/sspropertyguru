@@ -1,6 +1,8 @@
 import User from '../models/user.model.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import fs from 'fs';
+import { uploadOnCloudinary } from '../utils/cloudinary.js';
 
 // Delete any user
 export const deleteUser = async (req, res) => {
@@ -59,12 +61,24 @@ export const getAllUsers = async (req, res) => {
 export const editUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
 
     if (updates.role && updates.role !== "user") {
       return res
         .status(400)
         .json(new ApiError(400, "Role change not allowed"));
+    }
+
+    // Handle avatar upload
+    if (req.file?.path) {
+      try {
+        const uploadResult = await uploadOnCloudinary(req.file.path);
+        if (uploadResult?.url) updates.avatar = uploadResult.url;
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      } catch (err) {
+        if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        console.error('Avatar upload failed:', err);
+      }
     }
 
     const updatedUser = await User.findOneAndUpdate(
@@ -83,10 +97,9 @@ export const editUser = async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, updatedUser, "User updated successfully"));
   } catch (error) {
-    console.error("Error editing user:", error);
     return res
       .status(500)
-      .json(new ApiError(500, "Internal Server Error"));
+      .json(new ApiError(500, error.message || "Internal Server Error"));
   }
 };
 

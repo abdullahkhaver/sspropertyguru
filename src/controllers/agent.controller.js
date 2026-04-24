@@ -24,7 +24,7 @@ export const getAgents = async (req, res) => {
       .json(new ApiResponse(200, agents, 'Agents fetched successfully'));
   } catch (error) {
     console.error('Error fetching agents:', error);
-    return res.status(500).json(new ApiError(500, 'Internal Server Error'));
+    return res.status(500).json(new ApiError(500, error.message || 'Internal Server Error'));
   }
 };
 
@@ -341,7 +341,7 @@ export const updateAgentProfile = async (req, res) => {
     }
     return res.status(200).json(new ApiResponse(200, updated, 'Profile updated successfully'));
   } catch (error) {
-    return res.status(500).json(new ApiError(500, 'Error updating agent profile'));
+    return res.status(500).json(new ApiError(500, error.message || 'Error updating agent profile'));
   }
 };
 

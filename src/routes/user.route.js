@@ -8,12 +8,13 @@ import {
   removeFCMToken,
 } from '../controllers/user.controller.js';
 import protect from '../middleware/auth.middleware.js';
+import { upload } from "../middleware/multer.js";
 
 const router = express.Router();
 
 router.get("/", getAllUsers);
 router.get("/:id", getUserById);
-router.put("/:id", editUser);
+router.put("/:id", upload.single('avatar'), editUser);
 router.delete("/:id", deleteUser);
 router.post("/fcm-token", protect, updateFCMToken);
 router.delete("/fcm-token", protect, removeFCMToken);
