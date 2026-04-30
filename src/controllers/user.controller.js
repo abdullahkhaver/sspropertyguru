@@ -134,3 +134,37 @@ export const removeFCMToken = async (req, res) => {
     res.status(500).json(ApiError.internal(error.message));
   }
 };
+
+// Create manager (superadmin only)
+export const createManager = async (req, res) => {
+  try {
+    const { name, email, contact, password } = req.body;
+    if (!name || !email || !contact || !password) {
+      return res.status(400).json(new ApiResponse(400, null, 'Name, email, contact and password are required'));
+    }
+    if (password.length < 6) {
+      return res.status(400).json(new ApiResponse(400, null, 'Password must be at least 6 characters'));
+    }
+
+    const exists = await User.findOne({ $or: [{ email }, { contact }] });
+    if (exists) {
+      return res.status(409).json(new ApiResponse(409, null, 'User with this email or contact already exists'));
+    }
+
+    const manager = await User.create({ name, email, contact, password, role: 'manager', status: 'active' });
+    const safe = await User.findById(manager._id).select('-password');
+    return res.status(201).json(new ApiResponse(201, safe, 'Manager created successfully'));
+  } catch (err) {
+    return res.status(500).json(new ApiResponse(500, null, err.message));
+  }
+};
+
+// Get all managers
+export const getAllManagers = async (req, res) => {
+  try {
+    const managers = await User.find({ role: 'manager' }).select('-password');
+    return res.status(200).json(new ApiResponse(200, managers, 'Managers fetched'));
+  } catch (err) {
+    return res.status(500).json(new ApiResponse(500, null, err.message));
+  }
+};

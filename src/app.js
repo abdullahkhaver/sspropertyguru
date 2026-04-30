@@ -25,6 +25,7 @@ import requirementRoutes from "./routes/requirement.route.js"
 import notificationRoutes from './routes/notification.route.js';
 import streamRoutes from './routes/stream.route.js';
 import paymentRoutes from './routes/payment.route.js';
+import galleryRoutes from './routes/gallery.route.js';
 
 const app = express();
 app.use((req, res, next) => {
@@ -55,6 +56,8 @@ app.use(cookieParser());
 const allowedOrigins = [
   'https://sspropertyguru.com',
   'https://www.sspropertyguru.com',
+  'http://localhost:5173',
+  'http://localhost:3000',
 ];
 
 
@@ -88,6 +91,7 @@ app.use('/api/v1/requirements', requirementRoutes)
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/stream', streamRoutes);
 app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/gallery', galleryRoutes);
 // 404 Handler
 app.use(notFoundHandler);
 // Error Handler
