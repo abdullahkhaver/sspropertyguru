@@ -304,7 +304,8 @@ export const getProperties = async (req, res, next) => {
       .populate('franchise', 'name')
       .sort({ createdAt: -1 });
 
-    res.json(ApiResponse.success('Properties fetched', properties));
+    // Fixed: ApiResponse.success(data, message) - data first, message second
+    res.json(ApiResponse.success(properties, 'Properties fetched successfully'));
   } catch (err) {
     next(err);
   }
@@ -322,7 +323,8 @@ export const getPropertyById = async (req, res, next) => {
       return res.status(404).json(ApiError.notFound('Property not found'));
     }
 
-    res.json(ApiResponse.success('Property fetched', property));
+    // Fixed: ApiResponse.success(data, message) - data first, message second
+    res.json(ApiResponse.success(property, 'Property fetched successfully'));
   } catch (err) {
     next(err);
   }
@@ -336,7 +338,8 @@ export const deleteProperty = async (req, res, next) => {
       return res.status(404).json(ApiError.notFound('Property not found'));
     }
 
-    res.json(ApiResponse.success('Property deleted successfully', property));
+    // Fixed: ApiResponse.success(data, message) - data first, message second
+    res.json(ApiResponse.success(property, 'Property deleted successfully'));
   } catch (err) {
     next(err);
   }
