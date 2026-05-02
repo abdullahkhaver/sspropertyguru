@@ -25,13 +25,9 @@ export const createProperty = async (req, res) => {
     console.log('Incoming property data:', data);
     console.log('Incoming files:', req.files);
 
-    // PAYMENT VALIDATION: Optional for website, required for mobile app
-    // Website users can create properties without payment (for now)
-    // Mobile app users must provide paymentId
-    const isWebRequest = !data.paymentId && !req.headers['x-mobile-app'];
-    
-    if (!isWebRequest && !data.paymentId) {
-      console.log('[Property Creation] Payment validation failed - no paymentId from mobile app');
+    // PAYMENT VALIDATION: Check if paymentId is provided
+    if (!data.paymentId) {
+      console.log('[Property Creation] Payment validation failed - no paymentId');
       return res.status(402).json({
         success: false,
         message: 'Payment required. Please complete the payment of ₹20 to list your property.',
@@ -39,11 +35,7 @@ export const createProperty = async (req, res) => {
       });
     }
 
-    if (data.paymentId) {
-      console.log('[Property Creation] Payment validation passed - paymentId:', data.paymentId);
-    } else {
-      console.log('[Property Creation] Website request - payment skipped');
-    }
+    console.log('[Property Creation] Payment validation passed - paymentId:', data.paymentId);
 
     if (req.files?.images && req.files.images.length > 4) {
       return res.status(400).json({
