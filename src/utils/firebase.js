@@ -44,20 +44,34 @@ initFirebase();
  * Send push notification to a single FCM token
  */
 export const sendPushNotification = async (token, title, body, data = {}) => {
-    if (!admin.apps.length) return null;
+    if (!admin.apps.length) {
+        console.warn('[FCM] Firebase not initialized, skipping single push');
+        return null;
+    }
 
     try {
+        const channelId = data.type === 'new_property' ? 'property' : 'default';
         const response = await admin.messaging().send({
             notification: { title, body },
             data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
             token,
-            android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+            android: { 
+                priority: 'high', 
+                notification: { 
+                    sound: 'default', 
+                    channelId: channelId,
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK' // For consistency
+                } 
+            },
             apns: { payload: { aps: { sound: 'default', badge: 1 } } },
         });
-        console.log('✅ Push sent:', response);
+        console.log(`✅ Push sent to token: ...${token.slice(-6)} | Response:`, response);
         return response;
     } catch (err) {
         console.error('❌ Push failed:', err.message);
+        if (err.code === 'messaging/registration-token-not-registered') {
+            console.warn('   → Token is no longer valid. Should be removed from DB.');
+        }
         return null;
     }
 };
@@ -72,28 +86,40 @@ export const sendMulticastNotification = async (tokens, title, body, data = {}) 
     }
 
     const validTokens = tokens.filter(t => t && t.length > 10);
-    if (validTokens.length === 0) return null;
+    if (validTokens.length === 0) {
+        console.warn('[FCM] No valid tokens provided for multicast');
+        return null;
+    }
 
     try {
+        const channelId = data.type === 'new_property' ? 'property' : 'default';
         const response = await admin.messaging().sendEachForMulticast({
             notification: { title, body },
             data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
             tokens: validTokens,
-            android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+            android: { 
+                priority: 'high', 
+                notification: { 
+                    sound: 'default', 
+                    channelId: channelId 
+                } 
+            },
             apns: { payload: { aps: { sound: 'default', badge: 1 } } },
         });
 
-        console.log(`✅ Multicast: ${response.successCount}/${validTokens.length} sent`);
+        console.log(`✅ Multicast: ${response.successCount}/${validTokens.length} success, ${response.failureCount} failed`);
 
         if (response.failureCount > 0) {
             response.responses.forEach((r, i) => {
-                if (!r.success) console.error(`  Token[${i}] failed: ${r.error?.message}`);
+                if (!r.success) {
+                    console.error(`  Token[${i}] error: ${r.error?.code} - ${r.error?.message}`);
+                }
             });
         }
 
         return response;
     } catch (err) {
-        console.error('❌ Multicast failed:', err.message);
+        console.error('❌ Multicast fatal error:', err.message);
         return null;
     }
 };
