@@ -376,6 +376,7 @@ export const getPropertiesByFranchiseOrAgent = async (req, res) => {
       .populate('franchise', 'name email')
       .sort({ createdAt: -1 });
 
+    // Return empty array with 200 OK instead of 404 to prevent client app crash/errors
     if (!properties.length) {
       return res.status(200).json({
         success: true,
