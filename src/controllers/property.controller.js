@@ -377,9 +377,10 @@ export const getPropertiesByFranchiseOrAgent = async (req, res) => {
       .sort({ createdAt: -1 });
 
     if (!properties.length) {
-      return res.status(404).json({
-        success: false,
-        message: 'No properties found for the given criteria.',
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
       });
     }
 
