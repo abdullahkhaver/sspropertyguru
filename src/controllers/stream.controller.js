@@ -3,6 +3,30 @@ import Notification from '../models/notification.model.js';
 import User from '../models/user.model.js';
 import { sendMulticastNotification } from '../utils/firebase.js';
 
+// Helper to normalize YouTube URLs to the standard watch format
+const getStandardYoutubeUrl = (url) => {
+  if (!url) return url;
+  let videoId = null;
+  
+  if (url.includes('youtube.com/watch?v=')) {
+    videoId = url.split('v=')[1]?.split('&')[0];
+  } else if (url.includes('youtu.be/')) {
+    videoId = url.split('youtu.be/')[1]?.split('?')[0];
+  } else if (url.includes('youtube.com/live/')) {
+    videoId = url.split('/live/')[1]?.split('?')[0];
+  } else if (url.includes('/embed/')) {
+    videoId = url.split('/embed/')[1]?.split('?')[0];
+  } else {
+    const videoIdMatch = url.match(/[?&]v=([^&]+)/);
+    if (videoIdMatch) videoId = videoIdMatch[1];
+  }
+  
+  if (videoId) {
+    return `https://www.youtube.com/watch?v=${videoId}`;
+  }
+  return url;
+};
+
 // Add or update stream
 export const setStream = async (req, res) => {
   try {
@@ -13,14 +37,17 @@ export const setStream = async (req, res) => {
     
     console.log('[setStream] Received:', { youtubeUrl, isActive, activeStatus });
     
+    const normalizedUrl = getStandardYoutubeUrl(youtubeUrl);
+    console.log('[setStream] Normalized URL:', normalizedUrl);
+    
     let stream = await Stream.findOne();
     const wasInactive = !stream || !stream.isActive;
     
     if (!stream) {
-      stream = new Stream({ youtubeUrl, isActive: activeStatus });
+      stream = new Stream({ youtubeUrl: normalizedUrl, isActive: activeStatus });
       console.log('[setStream] Creating new stream');
     } else {
-      stream.youtubeUrl = youtubeUrl;
+      stream.youtubeUrl = normalizedUrl;
       stream.isActive = activeStatus;
       console.log('[setStream] Updating existing stream');
     }
@@ -51,7 +78,7 @@ export const setStream = async (req, res) => {
               tokens,
               '🔴 Live Property Tour!',
               'Property tour is streaming live now. Join and explore properties!',
-              { type: 'live_stream', streamUrl: youtubeUrl }
+              { type: 'live_stream', streamUrl: normalizedUrl }
             ).catch(err => console.error('Push notification failed:', err.message));
           }
           console.log(`[setStream] Notified ${allUsers.length} users about live stream.`);
