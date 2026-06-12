@@ -181,15 +181,13 @@ export const signup = async (req, res) => {
     });
 
     console.log('[SIGNUP SUCCESS] User registered:', createdUser.email);
-    // In dev/test mode include OTP in response so testing works without email
-    const devOtp = process.env.NODE_ENV !== 'production' ? otp : undefined;
     return res
       .status(201)
       .json(
         new ApiResponse(
           201,
-          { user: createdUser, token, ...(devOtp && { devOtp }) },
-          'User registered successfully. Please check your email for OTP verification.',
+          { user: createdUser, token },
+          'User registered successfully. Please check your phone for OTP verification.',
         ),
       );
   } catch (err) {
@@ -391,8 +389,7 @@ export const forgotPassword = async (req, res) => {
       console.log('[OTP] No delivery channel available. OTP:', otp);
     }
 
-    const devOtp = process.env.NODE_ENV !== 'production' ? otp : undefined;
-    res.status(200).json(new ApiResponse(200, { ...(devOtp && { devOtp }) }, "OTP sent successfully"));
+    res.status(200).json(new ApiResponse(200, null, "OTP sent successfully"));
   } catch (err) {
     console.error(err);
     res.status(500).json(ApiError.internal("Error sending OTP"));
