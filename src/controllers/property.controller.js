@@ -6,6 +6,33 @@ import { sendMulticastNotification } from '../utils/firebase.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { uploadOnCloudinary } from '../utils/cloudinary.js';
+
+// Fallback image as data URI (SVG)
+const FALLBACK_IMAGE = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="400"%3E%3Crect fill="%23e0e0e0" width="800" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="24" fill="%23999" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';
+
+// Helper function to sanitize image URLs
+const sanitizeProperty = (property) => {
+  if (property && property.images && Array.isArray(property.images)) {
+    property.images = property.images.map((img) => {
+      // Replace broken placeholder URLs with SVG fallback
+      if (img.url && img.url.includes('via.placeholder.com')) {
+        return { ...img, url: FALLBACK_IMAGE };
+      }
+      // If URL is empty or invalid, use fallback
+      if (!img.url || img.url.trim() === '') {
+        return { ...img, url: FALLBACK_IMAGE };
+      }
+      return img;
+    });
+  }
+  return property;
+};
+
+// Helper function to sanitize array of properties
+const sanitizeProperties = (properties) => {
+  return properties.map((prop) => sanitizeProperty(prop.toObject ? prop.toObject() : prop));
+};
+
 const formatValidationError = (err) => {
   if (err.name === 'ValidationError') {
     const errors = {};
@@ -16,6 +43,7 @@ const formatValidationError = (err) => {
   }
   return null;
 };
+
 export const createProperty = async (req, res) => {
   try {
     const data = req.body;
@@ -164,6 +192,7 @@ export const createProperty = async (req, res) => {
     });
   }
 };
+
 export const updateProperty = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -268,7 +297,7 @@ export const updateProperty = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Property updated successfully',
-      data: updatedProperty,
+      data: sanitizeProperty(updatedProperty),
     });
   } catch (err) {
     console.error('Update Property Error:', err);
@@ -316,8 +345,10 @@ export const getProperties = async (req, res, next) => {
       .populate('franchise', 'name')
       .sort({ createdAt: -1 });
 
-    // Fixed: ApiResponse.success(data, message) - data first, message second
-    res.json(ApiResponse.success(properties, 'Properties fetched successfully'));
+    // Sanitize all properties to replace broken placeholder URLs
+    const sanitized = sanitizeProperties(properties);
+
+    res.json(ApiResponse.success(sanitized, 'Properties fetched successfully'));
   } catch (err) {
     next(err);
   }
@@ -335,8 +366,10 @@ export const getPropertyById = async (req, res, next) => {
       return res.status(404).json(ApiError.notFound('Property not found'));
     }
 
-    // Fixed: ApiResponse.success(data, message) - data first, message second
-    res.json(ApiResponse.success(property, 'Property fetched successfully'));
+    // Sanitize property to replace broken placeholder URLs
+    const sanitized = sanitizeProperty(property);
+
+    res.json(ApiResponse.success(sanitized, 'Property fetched successfully'));
   } catch (err) {
     next(err);
   }
@@ -350,12 +383,12 @@ export const deleteProperty = async (req, res, next) => {
       return res.status(404).json(ApiError.notFound('Property not found'));
     }
 
-    // Fixed: ApiResponse.success(data, message) - data first, message second
     res.json(ApiResponse.success(property, 'Property deleted successfully'));
   } catch (err) {
     next(err);
   }
 };
+
 export const getPropertiesByFranchiseOrAgent = async (req, res) => {
   try {
     const { franchiseId, agentId } = req.params;
@@ -385,10 +418,13 @@ export const getPropertiesByFranchiseOrAgent = async (req, res) => {
       });
     }
 
+    // Sanitize all properties
+    const sanitized = sanitizeProperties(properties);
+
     return res.status(200).json({
       success: true,
-      count: properties.length,
-      data: properties,
+      count: sanitized.length,
+      data: sanitized,
     });
   } catch (err) {
     console.error('Fetch Properties Error:', err);
@@ -398,3 +434,4 @@ export const getPropertiesByFranchiseOrAgent = async (req, res) => {
     });
   }
 };
+
