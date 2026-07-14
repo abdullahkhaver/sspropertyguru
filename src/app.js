@@ -50,16 +50,19 @@ app.use((err, req, res, next) => {
   next();
 });
 app.use(cookieParser());
-// const allowedOrigins = [
-//   'https://sspropertyguru.com',
-// ];
-const allowedOrigins = [
-  'https://sspropertyguru.com',
-  'https://www.sspropertyguru.com',
-  'http://localhost:5173',
-  'http://localhost:3000',
-];
 
+// CORS Origins configuration from environment variable or default fallback
+const corsOriginsEnv = process.env.CORS_ORIGINS;
+const allowedOrigins = corsOriginsEnv
+  ? corsOriginsEnv.split(',').map((origin) => origin.trim())
+  : [
+      'https://sspropertyguru.com',
+      'https://www.sspropertyguru.com',
+      'http://localhost:5173',
+      'http://localhost:3000',
+    ];
+
+console.log('[CORS] Allowed Origins:', allowedOrigins);
 
 app.use(
   cors({
@@ -99,3 +102,4 @@ app.use(errorHandler);
 
 // Deployment timestamp: 2026-03-22T13:33:46
 export default app;
+
