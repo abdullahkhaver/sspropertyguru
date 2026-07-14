@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+// Default placeholder image (simple data URI or static URL)
+const DEFAULT_IMAGE_URL = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="800" height="400"%3E%3Crect fill="%23e0e0e0" width="800" height="400"/%3E%3Ctext x="50%25" y="50%25" font-size="24" fill="%23999" text-anchor="middle" dy=".3em"%3ENo Image Available%3C/text%3E%3C/svg%3E';
+
 const propertySchema = new mongoose.Schema(
   {
     title: { type: String, required: [true, 'Title is required'], index: true },
@@ -14,7 +17,17 @@ const propertySchema = new mongoose.Schema(
 
     images: [
       {
-        url: { type: String, required: true },
+        url: { 
+          type: String, 
+          required: true,
+          set: (value) => {
+            // Provide fallback image if URL is empty or invalid
+            if (!value || value.trim() === '') {
+              return DEFAULT_IMAGE_URL;
+            }
+            return value;
+          }
+        },
         public_id: { type: String },
       },
     ], // up to 4 Cloudinary URLs
@@ -60,4 +73,30 @@ const propertySchema = new mongoose.Schema(
 
 propertySchema.index({ title: 'text', features: 'text' });
 
+// Post-save hook to ensure at least one fallback image exists
+propertySchema.post('save', function(doc) {
+  if (!doc.images || doc.images.length === 0) {
+    doc.images = [
+      {
+        url: DEFAULT_IMAGE_URL,
+        public_id: 'fallback'
+      }
+    ];
+  }
+});
+
+// Post-findOneAndUpdate hook
+propertySchema.post('findOneAndUpdate', async function(doc) {
+  if (doc && (!doc.images || doc.images.length === 0)) {
+    doc.images = [
+      {
+        url: DEFAULT_IMAGE_URL,
+        public_id: 'fallback'
+      }
+    ];
+    await doc.save();
+  }
+});
+
 export default mongoose.model('Property', propertySchema);
+
