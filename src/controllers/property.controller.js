@@ -336,7 +336,7 @@ export const getPropertyById = async (req, res, next) => {
     }
 
     // Fixed: ApiResponse.success(data, message) - data first, message second
-    res.json(ApiResponse.success(property, 'Property fetched successfully'));
+    res.json(ApiResponse.success('Property fetched successfully' ,property ));
   } catch (err) {
     next(err);
   }
